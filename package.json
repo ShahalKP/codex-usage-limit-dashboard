@@ -1,0 +1,26 @@
+{
+  "scripts": {
+    "build": "tsc -p tsconfig.json && vite build --config web/vite.config.ts",
+    "usage": "tsx src/cli.ts usage",
+    "login": "tsx src/cli.ts login",
+    "server": "tsx src/server.ts",
+    "web": "vite --host 127.0.0.1 --config web/vite.config.ts",
+    "dev": "concurrently -n api,web -c auto \"npm:server\" \"npm:web\""
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^9.2.1",
+    "express": "^5.1.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.0.3",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3"
+  }
+}
