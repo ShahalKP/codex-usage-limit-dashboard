@@ -28,6 +28,77 @@ codex --version
 pnpm install
 ```
 
+## Optional global command
+
+This repo is not packaged as a global CLI yet. For personal use, create a small
+wrapper script on your `PATH` so `codex-usage` works from any directory without
+changing this repo.
+
+First verify the CLI works from the repo:
+
+```zsh
+pnpm --dir /Users/shahalkp/Documents/Github/codex-usage-limit-dashboard exec tsx src/cli.ts --help
+```
+
+Create a user-local bin directory:
+
+```zsh
+mkdir -p ~/.local/bin
+```
+
+Create the wrapper script:
+
+```zsh
+cat > ~/.local/bin/codex-usage << 'EOF'
+#!/bin/zsh
+exec pnpm --dir /Users/shahalkp/Documents/Github/codex-usage-limit-dashboard exec tsx src/cli.ts "$@"
+EOF
+```
+
+Make it executable:
+
+```zsh
+chmod +x ~/.local/bin/codex-usage
+```
+
+Ensure `~/.local/bin` is on your shell `PATH`:
+
+```zsh
+echo $PATH | tr ':' '\n' | grep "$HOME/.local/bin"
+```
+
+If nothing prints, add this to `~/.zshrc`:
+
+```zsh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Then reload your shell config:
+
+```zsh
+source ~/.zshrc
+```
+
+Verify the command:
+
+```zsh
+codex-usage --help
+```
+
+Usage:
+
+```zsh
+codex-usage
+codex-usage usage
+codex-usage usage --watch
+codex-usage usage --json
+codex-usage login
+```
+
+The wrapper intentionally runs the real CLI entrypoint directly instead of
+`pnpm run usage`. This keeps all subcommands working because `"$@"` forwards
+the arguments you type after `codex-usage`.
+
 ## Authenticate
 
 If your Codex CLI/app is already logged in, you can skip this.
