@@ -11,17 +11,17 @@ It has two modes:
 
 ### Key technologies
 
-| Layer | Tech |
-|---|---|
-| Runtime | Node.js 20+, `tsx` (no compile step for dev) |
-| Backend | Express 5, JSON-RPC over stdio to `codex app-server` |
-| Frontend | React 19, Vite 7, plain CSS |
-| Language | TypeScript 5 (strict, ESM, `NodeNext` resolution) |
+| Layer           | Tech                                                                  |
+| --------------- | --------------------------------------------------------------------- |
+| Runtime         | Node.js 20+, `tsx` (no compile step for dev)                          |
+| Backend         | Express 5, JSON-RPC over stdio to `codex app-server`                  |
+| Frontend        | React 19, Vite 7, plain CSS                                           |
+| Language        | TypeScript 5 (strict, ESM, `NodeNext` resolution)                     |
 | Package manager | **pnpm** (a `pnpm-lock.yaml` is present; use `pnpm` for all installs) |
 
 ### Architecture
 
-```
+```plaintext
 src/
   cli.ts        — entry point for CLI commands (login / usage)
   server.ts     — Express API server; exposes /api/codex/rate-limits
@@ -140,13 +140,13 @@ There is no test suite in this project. When adding tests:
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| `codex: command not found` | Codex CLI not on `PATH` | Install Codex CLI or set `CODEX_BIN` |
-| `Not logged in` in CLI output | Codex app-server has no auth token | Run `pnpm run login` |
-| API returns 500 with timeout message | `codex app-server` took > 30 s | Check Codex CLI version; ensure network connectivity |
-| Frontend shows stale data | Browser cached previous response | Click the Refresh button in the dashboard |
-| Port 8787 already in use | Another process bound to the port | Set `PORT=<other>` and update the Vite proxy target in `web/vite.config.ts` |
+| Symptom                              | Likely cause                       | Fix                                                                         |
+| ------------------------------------ | ---------------------------------- | --------------------------------------------------------------------------- |
+| `codex: command not found`           | Codex CLI not on `PATH`            | Install Codex CLI or set `CODEX_BIN`                                        |
+| `Not logged in` in CLI output        | Codex app-server has no auth token | Run `pnpm run login`                                                        |
+| API returns 500 with timeout message | `codex app-server` took > 30 s     | Check Codex CLI version; ensure network connectivity                        |
+| Frontend shows stale data            | Browser cached previous response   | Click the Refresh button in the dashboard                                   |
+| Port 8787 already in use             | Another process bound to the port  | Set `PORT=<other>` and update the Vite proxy target in `web/vite.config.ts` |
 
 ## Important Behavior Notes
 
