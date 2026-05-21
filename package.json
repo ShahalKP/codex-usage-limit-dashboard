@@ -1,7 +1,9 @@
 {
+  "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json && vite build --config web/vite.config.ts",
     "usage": "tsx src/cli.ts usage",
+    "usage:json": "tsx src/cli.ts usage --json",
     "login": "tsx src/cli.ts login",
     "server": "tsx src/server.ts",
     "web": "vite --host 127.0.0.1 --config web/vite.config.ts",
@@ -9,13 +11,17 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.0",
+    "commander": "^14.0.3",
     "concurrently": "^9.2.1",
+    "date-fns": "^4.2.1",
     "express": "^5.1.0",
+    "ink": "^7.0.3",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
     "tsx": "^4.20.5",
     "typescript": "^5.9.3",
     "vite": "^7.2.7",
-    "react": "^19.2.1",
-    "react-dom": "^19.2.1"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

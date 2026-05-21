@@ -1,15 +1,17 @@
+import type { z } from "zod";
 import { CodexRpcClient } from "./codexRpc.js";
-import type {
-  AccountReadResult,
-  CodexRateLimit,
-  RateLimitsReadResult,
-  UsageSnapshot,
-} from "./types.js";
+import {
+  AccountReadResultSchema,
+  RateLimitsReadResultSchema,
+} from "./schemas.js";
+import type { CodexRateLimit, UsageSnapshot } from "./types.js";
 
-function pickCodexLimit(result: RateLimitsReadResult): CodexRateLimit | null {
+type ValidatedLimitsResult = z.infer<typeof RateLimitsReadResultSchema>;
+
+function pickCodexLimit(result: ValidatedLimitsResult): CodexRateLimit | null {
   const byId = result.rateLimitsByLimitId;
 
-  if (byId?.codex) return byId.codex;
+  if (byId?.["codex"]) return byId["codex"] as CodexRateLimit;
 
   const all = byId ? Object.values(byId) : [];
   const codexLike = all.find((item) =>
@@ -18,16 +20,19 @@ function pickCodexLimit(result: RateLimitsReadResult): CodexRateLimit | null {
       .some((value) => String(value).toLowerCase().includes("codex")),
   );
 
-  return codexLike ?? result.rateLimits ?? all[0] ?? null;
+  return (codexLike ??
+    result.rateLimits ??
+    all[0] ??
+    null) as CodexRateLimit | null;
 }
 
-function allLimits(result: RateLimitsReadResult): CodexRateLimit[] {
+function allLimits(result: ValidatedLimitsResult): CodexRateLimit[] {
   if (result.rateLimitsByLimitId) {
     return Object.values(result.rateLimitsByLimitId).filter(
       (item) => item.limitId !== "codex_bengalfox",
-    );
+    ) as CodexRateLimit[];
   }
-  return result.rateLimits ? [result.rateLimits] : [];
+  return result.rateLimits ? [result.rateLimits as CodexRateLimit] : [];
 }
 
 export async function fetchCodexUsage(): Promise<UsageSnapshot> {
@@ -36,19 +41,29 @@ export async function fetchCodexUsage(): Promise<UsageSnapshot> {
   try {
     await client.start();
 
-    const account = await client.request<AccountReadResult>("account/read", {
+    const rawAccount = await client.request<unknown>("account/read", {
       refreshToken: true,
     });
+    const accountResult = AccountReadResultSchema.safeParse(rawAccount);
+    if (!accountResult.success) {
+      throw new Error(
+        `Unexpected account/read response: ${accountResult.error.message}`,
+      );
+    }
 
-    const limits = await client.request<RateLimitsReadResult>(
-      "account/rateLimits/read",
-    );
+    const rawLimits = await client.request<unknown>("account/rateLimits/read");
+    const limitsResult = RateLimitsReadResultSchema.safeParse(rawLimits);
+    if (!limitsResult.success) {
+      throw new Error(
+        `Unexpected rateLimits/read response: ${limitsResult.error.message}`,
+      );
+    }
 
     return {
       fetchedAt: new Date().toISOString(),
-      account: account.account,
-      selectedLimit: pickCodexLimit(limits),
-      allLimits: allLimits(limits),
+      account: accountResult.data.account,
+      selectedLimit: pickCodexLimit(limitsResult.data),
+      allLimits: allLimits(limitsResult.data),
     };
   } finally {
     await client.stop();

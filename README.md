@@ -1,10 +1,11 @@
 # Codex Usage Limit Dashboard
 
-A local TypeScript implementation for reading your current Codex / ChatGPT rate-limit bucket through the official `codex app-server` JSON-RPC surface.
+A local TypeScript tool for reading your current Codex / ChatGPT rate-limit bucket through the official `codex app-server` JSON-RPC surface.
 
 It supports:
 
-- `pnpm run usage` — one-shot CLI usage report.
+- `pnpm run usage` — one-shot TUI usage report (powered by [Ink](https://github.com/vadimdemedes/ink)).
+- `pnpm run usage -- --watch` — live dashboard that auto-refreshes every 60 seconds.
 - `pnpm run login` — ChatGPT device-code login through Codex app-server.
 - `pnpm run dev` — local Express API + Vite React dashboard.
 
@@ -43,25 +44,56 @@ This starts the official Codex app-server device-code flow and prints a verifica
 pnpm run usage
 ```
 
-Example output:
+This opens an interactive TUI showing color-coded progress bars for each rate-limit window, reset times in human-readable form, and account info:
 
-```text
-Account: you@example.com (pro)
-Bucket: codex
-Usage: 25% used / 75% remaining
-Window: 15 minutes
-Resets: 2026-05-21 21:30:00
+```plaintext
+ ⚡ Codex Usage Limits
+
+ Account you@example.com · pro · bucket codex
+
+ ╭─────────────────────────────────────────────────────────╮
+ │  5h Window                                              │
+ │                                                         │
+ │  █░░░░░░░░░░░░░░░░░░░░░░░░░░░  5% used                  │
+ │    95% remaining · resets in 3h 1m (May 22 at 12:28 AM) │
+ ╰─────────────────────────────────────────────────────────╯
+
+ ╭─────────────────────────────────────────────────────────╮
+ │  7d Window                                              │
+ │                                                         │
+ │  ███████░░░░░░░░░░░░░░░░░░░░░  26% used                 │
+ │    74% remaining · resets in 5d 2h (May 27 at 12:06 AM) │
+ ╰─────────────────────────────────────────────────────────╯
+
+ Fetched May 21, 9:27 PM
 ```
 
-Machine-readable JSON:
+Progress bars are color-coded: green below 60% used, yellow 60–80%, red above 80%.
+
+### Watch mode (auto-refresh)
+
+```bash
+pnpm run usage -- --watch
+# or
+pnpm run usage -- -w
+```
+
+Stays open, counts down to the next 60-second refresh, and responds to keyboard shortcuts:
+
+- `r` — force an immediate refresh
+- `q` / `Esc` — quit
+
+### Machine-readable JSON
 
 ```bash
 pnpm run usage -- --json
+# or the dedicated alias
+pnpm run usage:json
 ```
 
 ## Run dashboard
 
-```bash
+```bashUpdat
 pnpm run dev
 ```
 

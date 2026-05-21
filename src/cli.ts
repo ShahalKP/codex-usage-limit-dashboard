@@ -1,86 +1,52 @@
-import { loginWithDeviceCode } from "./login.js";
-import { fetchCodexUsage, remainingPercent, resetDate } from "./usage.js";
+import { Command } from "commander";
+import { renderLogin } from "./tui/LoginApp.js";
+import { renderUsage } from "./tui/UsageApp.js";
+import { fetchCodexUsage } from "./usage.js";
 
-function formatDate(date: Date | null): string {
-  if (!date) return "Unknown";
-  return date.toLocaleString();
-}
-
-function printUsage(
-  snapshot: Awaited<ReturnType<typeof fetchCodexUsage>>,
-): void {
-  const account = snapshot.account;
-  const limit = snapshot.selectedLimit;
-  const primary = limit?.primary ?? null;
-  const remaining = remainingPercent(limit);
-  const reset = resetDate(limit);
-
-  console.log("");
-  console.log(`Fetched: ${new Date(snapshot.fetchedAt).toLocaleString()}`);
-  const planType = limit?.planType ?? account?.planType;
-  console.log(
-    `Account: ${
-      account
-        ? `${account.email ?? account.type}${planType ? ` (${planType})` : ""}`
-        : "Not logged in"
-    }`,
+const program = new Command()
+  .name("codex-usage")
+  .description("Show your Codex rate-limit usage")
+  .version("1.0.0")
+  .addHelpText(
+    "after",
+    "\nExamples:\n  codex-usage usage\n  codex-usage usage --watch\n  codex-usage usage --json\n  codex-usage login",
   );
 
-  if (!limit || !primary) {
-    console.log("No Codex rate-limit bucket was returned.");
-    console.log("Try: npm run login");
-    return;
-  }
-
-  console.log(`Bucket: ${limit.limitName ?? limit.limitId}`);
-  console.log(
-    `5h window:   ${primary.usedPercent}% used / ${remaining}% remaining (resets ${formatDate(reset)})`,
-  );
-
-  if (limit.secondary) {
-    const secUsed = limit.secondary.usedPercent;
-    const secRemaining = Math.max(0, Math.min(100, 100 - secUsed));
-    const secReset = limit.secondary.resetsAt
-      ? new Date(limit.secondary.resetsAt * 1000)
-      : null;
-    console.log(
-      `7d window:   ${secUsed}% used / ${secRemaining}% remaining (resets ${formatDate(secReset)})`,
-    );
-  }
-
-  if (limit.rateLimitReachedType) {
-    console.log(`Limit state: ${limit.rateLimitReachedType}`);
-  }
-}
-
-async function main(): Promise<void> {
-  const command = process.argv[2] ?? "usage";
-  const json = process.argv.includes("--json");
-
-  if (command === "login") {
-    await loginWithDeviceCode();
-    return;
-  }
-
-  if (command === "usage") {
-    const snapshot = await fetchCodexUsage();
-    if (json) {
+program
+  .command("usage")
+  .description("Show current usage and rate limits")
+  .option("--json", "Output raw JSON (skips TUI)")
+  .option("-w, --watch", "Stay open and auto-refresh every 60 seconds")
+  .action(async (opts: { json?: boolean; watch?: boolean }) => {
+    if (opts.json) {
+      const snapshot = await fetchCodexUsage();
       console.log(JSON.stringify(snapshot, null, 2));
-    } else {
-      printUsage(snapshot);
+      return;
     }
-    return;
-  }
+    const { waitUntilExit } = renderUsage({ watch: opts.watch ?? false });
+    await waitUntilExit();
+  });
 
-  console.error(`Unknown command: ${command}`);
-  console.error("Usage:");
-  console.error("  npm run login");
-  console.error("  npm run usage");
-  console.error("  npm run usage -- --json");
-  process.exitCode = 1;
+program
+  .command("login")
+  .description("Authenticate with ChatGPT via device code flow")
+  .action(async () => {
+    const { waitUntilExit } = renderLogin();
+    await waitUntilExit();
+  });
+
+// Default to `usage` if no command is given
+if (process.argv.length === 2) {
+  process.argv.push("usage");
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
+// Strip the bare `--` that pnpm injects when forwarding extra arguments
+// (e.g. `pnpm run usage -- --json` becomes `tsx src/cli.ts usage -- --json`).
+// Commander treats `--` as the options terminator and then rejects `--json`
+// as an unexpected positional argument.
+const argv = process.argv.filter((a) => a !== "--");
+
+program.parseAsync(argv).catch((err: unknown) => {
+  console.error(err instanceof Error ? err.message : String(err));
   process.exitCode = 1;
 });
