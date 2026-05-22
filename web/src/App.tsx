@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import Loader from "./components/kokonutui/loader.js";
 import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert.js";
 import { Button } from "./components/ui/button.js";
 import {
@@ -177,7 +178,7 @@ function WindowCard({ label, win }: { label: string; win: RateLimitWindow }) {
 function App() {
   const [data, setData] = useState<UsageSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   async function refresh() {
     setLoading(true);
@@ -220,6 +221,22 @@ function App() {
     if (!data?.account) return "Not logged in";
     return data.account.email ?? data.account.type;
   }, [data]);
+
+  const showInitialLoader = loading && !data && !error;
+
+  if (showInitialLoader) {
+    return (
+      <main className="min-h-svh px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto flex min-h-[70svh] w-full max-w-5xl items-center justify-center">
+          <Loader
+            size="lg"
+            title="Fetching Codex usage..."
+            subtitle="Reading your current rate-limit windows and account status"
+          />
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-svh px-4 py-10 sm:px-6 lg:px-8">

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import { cn } from "@/lib/utils";
+import { cn } from "../../lib/utils.js";
 
 interface LoaderProps extends React.HTMLAttributes<HTMLDivElement> {
   title?: string;
@@ -16,6 +16,13 @@ export default function Loader({
   className,
   ...props
 }: LoaderProps) {
+  const ringColors = {
+    bright: "rgba(229, 238, 248, 0.92)",
+    accent: "rgba(125, 211, 252, 0.82)",
+    soft: "rgba(148, 163, 184, 0.45)",
+    spark: "rgba(224, 242, 254, 0.42)",
+  };
+
   const sizeConfig = {
     sm: {
       container: "size-20",
@@ -46,7 +53,7 @@ export default function Loader({
     <div
       className={cn(
         "flex flex-col items-center justify-center gap-8 p-8",
-        className
+        className,
       )}
       {...props}
     >
@@ -55,7 +62,10 @@ export default function Loader({
         animate={{
           scale: [1, 1.02, 1],
         }}
-        className={cn("relative", config.container)}
+        className={cn(
+          "relative drop-shadow-[0_0_28px_rgba(125,211,252,0.18)]",
+          config.container,
+        )}
         transition={{
           duration: 4,
           repeat: Number.POSITIVE_INFINITY,
@@ -69,8 +79,7 @@ export default function Loader({
           }}
           className="absolute inset-0 rounded-full"
           style={{
-            background:
-              "conic-gradient(from 0deg, transparent 0deg, rgb(0, 0, 0) 90deg, transparent 180deg)",
+            background: `conic-gradient(from 0deg, transparent 0deg, ${ringColors.bright} 90deg, transparent 180deg)`,
             mask: "radial-gradient(circle at 50% 50%, transparent 35%, black 37%, black 39%, transparent 41%)",
             WebkitMask:
               "radial-gradient(circle at 50% 50%, transparent 35%, black 37%, black 39%, transparent 41%)",
@@ -90,8 +99,7 @@ export default function Loader({
           }}
           className="absolute inset-0 rounded-full"
           style={{
-            background:
-              "conic-gradient(from 0deg, transparent 0deg, rgb(0, 0, 0) 120deg, rgba(0, 0, 0, 0.5) 240deg, transparent 360deg)",
+            background: `conic-gradient(from 0deg, transparent 0deg, ${ringColors.accent} 120deg, ${ringColors.soft} 240deg, transparent 360deg)`,
             mask: "radial-gradient(circle at 50% 50%, transparent 42%, black 44%, black 48%, transparent 50%)",
             WebkitMask:
               "radial-gradient(circle at 50% 50%, transparent 42%, black 44%, black 48%, transparent 50%)",
@@ -111,8 +119,7 @@ export default function Loader({
           }}
           className="absolute inset-0 rounded-full"
           style={{
-            background:
-              "conic-gradient(from 180deg, transparent 0deg, rgba(0, 0, 0, 0.6) 45deg, transparent 90deg)",
+            background: `conic-gradient(from 180deg, transparent 0deg, ${ringColors.soft} 45deg, transparent 90deg)`,
             mask: "radial-gradient(circle at 50% 50%, transparent 52%, black 54%, black 56%, transparent 58%)",
             WebkitMask:
               "radial-gradient(circle at 50% 50%, transparent 52%, black 54%, black 56%, transparent 58%)",
@@ -132,89 +139,7 @@ export default function Loader({
           }}
           className="absolute inset-0 rounded-full"
           style={{
-            background:
-              "conic-gradient(from 270deg, transparent 0deg, rgba(0, 0, 0, 0.4) 20deg, transparent 40deg)",
-            mask: "radial-gradient(circle at 50% 50%, transparent 61%, black 62%, black 63%, transparent 64%)",
-            WebkitMask:
-              "radial-gradient(circle at 50% 50%, transparent 61%, black 62%, black 63%, transparent 64%)",
-            opacity: 0.5,
-          }}
-          transition={{
-            duration: 3.5,
-            repeat: Number.POSITIVE_INFINITY,
-            ease: "linear",
-          }}
-        />
-
-        {/* Dark mode variants */}
-        <motion.div
-          animate={{
-            rotate: [0, 360],
-          }}
-          className="absolute inset-0 hidden rounded-full dark:block"
-          style={{
-            background:
-              "conic-gradient(from 0deg, transparent 0deg, rgb(255, 255, 255) 90deg, transparent 180deg)",
-            mask: "radial-gradient(circle at 50% 50%, transparent 35%, black 37%, black 39%, transparent 41%)",
-            WebkitMask:
-              "radial-gradient(circle at 50% 50%, transparent 35%, black 37%, black 39%, transparent 41%)",
-            opacity: 0.8,
-          }}
-          transition={{
-            duration: 3,
-            repeat: Number.POSITIVE_INFINITY,
-            ease: "linear",
-          }}
-        />
-
-        <motion.div
-          animate={{
-            rotate: [0, 360],
-          }}
-          className="absolute inset-0 hidden rounded-full dark:block"
-          style={{
-            background:
-              "conic-gradient(from 0deg, transparent 0deg, rgb(255, 255, 255) 120deg, rgba(255, 255, 255, 0.5) 240deg, transparent 360deg)",
-            mask: "radial-gradient(circle at 50% 50%, transparent 42%, black 44%, black 48%, transparent 50%)",
-            WebkitMask:
-              "radial-gradient(circle at 50% 50%, transparent 42%, black 44%, black 48%, transparent 50%)",
-            opacity: 0.9,
-          }}
-          transition={{
-            duration: 2.5,
-            repeat: Number.POSITIVE_INFINITY,
-            ease: [0.4, 0, 0.6, 1],
-          }}
-        />
-
-        <motion.div
-          animate={{
-            rotate: [0, -360],
-          }}
-          className="absolute inset-0 hidden rounded-full dark:block"
-          style={{
-            background:
-              "conic-gradient(from 180deg, transparent 0deg, rgba(255, 255, 255, 0.6) 45deg, transparent 90deg)",
-            mask: "radial-gradient(circle at 50% 50%, transparent 52%, black 54%, black 56%, transparent 58%)",
-            WebkitMask:
-              "radial-gradient(circle at 50% 50%, transparent 52%, black 54%, black 56%, transparent 58%)",
-            opacity: 0.35,
-          }}
-          transition={{
-            duration: 4,
-            repeat: Number.POSITIVE_INFINITY,
-            ease: [0.4, 0, 0.6, 1],
-          }}
-        />
-
-        <motion.div
-          animate={{
-            rotate: [0, 360],
-          }}
-          className="absolute inset-0 hidden rounded-full dark:block"
-          style={{
-            background:
-              "conic-gradient(from 270deg, transparent 0deg, rgba(255, 255, 255, 0.4) 20deg, transparent 40deg)",
+            background: `conic-gradient(from 270deg, transparent 0deg, ${ringColors.spark} 20deg, transparent 40deg)`,
             mask: "radial-gradient(circle at 50% 50%, transparent 61%, black 62%, black 63%, transparent 64%)",
             WebkitMask:
               "radial-gradient(circle at 50% 50%, transparent 61%, black 62%, black 63%, transparent 64%)",
@@ -250,7 +175,7 @@ export default function Loader({
           }}
           className={cn(
             config.titleClass,
-            "font-medium text-black/90 leading-[1.15] tracking-[-0.02em] antialiased dark:text-white/90"
+            "font-medium text-foreground leading-[1.15] tracking-[-0.02em] antialiased",
           )}
           initial={{ opacity: 0, y: 12 }}
           transition={{
@@ -281,7 +206,7 @@ export default function Loader({
           }}
           className={cn(
             config.subtitleClass,
-            "font-normal text-black/60 leading-[1.45] tracking-[-0.01em] antialiased dark:text-white/60"
+            "font-normal text-muted-foreground leading-[1.45] tracking-[-0.01em] antialiased",
           )}
           initial={{ opacity: 0, y: 8 }}
           transition={{
