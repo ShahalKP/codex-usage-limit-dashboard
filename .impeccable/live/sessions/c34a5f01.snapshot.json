@@ -1,0 +1,29 @@
+{
+  "id": "c34a5f01",
+  "phase": "completed",
+  "pageUrl": "/",
+  "sourceFile": "web/src/App.tsx",
+  "expectedVariants": 3,
+  "arrivedVariants": 3,
+  "visibleVariant": 2,
+  "paramValues": {
+    "split": 0.5,
+    "divider": "line"
+  },
+  "pendingEventSeq": null,
+  "pendingEvent": null,
+  "deliveryLease": null,
+  "checkpointRevision": 58,
+  "activeOwner": "419d5df3",
+  "sourceMarkers": {},
+  "fallbackMode": null,
+  "annotationArtifacts": [],
+  "diagnostics": [
+    {
+      "error": "carbonize_cleanup_required",
+      "file": "web/src/App.tsx",
+      "message": "Accepted variant still has carbonize markers that must be folded into source CSS."
+    }
+  ],
+  "updatedAt": "2026-05-22T13:24:57.427Z"
+}

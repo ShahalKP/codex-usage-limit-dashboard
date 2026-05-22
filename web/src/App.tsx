@@ -9,16 +9,6 @@ import { createRoot } from "react-dom/client";
 import Loader from "./components/kokonutui/loader.js";
 import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert.js";
 import { Button } from "./components/ui/button.js";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "./components/ui/card.js";
-import { Progress } from "./components/ui/progress.js";
-import { cn } from "./lib/utils.js";
 import "./styles.css";
 
 type RateLimitWindow = {
@@ -126,18 +116,6 @@ function timeProgressClass(percentLeft: number): string {
   return "[&>[data-slot=progress-indicator]]:bg-info";
 }
 
-function formatWindowDuration(mins: number): string {
-  if (mins >= 1440) {
-    const days = Math.round(mins / 1440);
-    return days === 1 ? "1-day quota window" : `${days}-day quota window`;
-  }
-  if (mins >= 60) {
-    const hours = Math.round(mins / 60);
-    return hours === 1 ? "1-hour quota window" : `${hours}-hour quota window`;
-  }
-  return `${mins}-minute quota window`;
-}
-
 function formatWindowLabel(mins: number): string {
   if (mins >= 1440) return `${Math.round(mins / 1440)}d Window`;
   if (mins >= 60) return `${Math.round(mins / 60)}h Window`;
@@ -155,46 +133,60 @@ function WindowCard({ label, win }: { label: string; win: RateLimitWindow }) {
   const remaining = clampPercent(100 - win.usedPercent);
   const timeLeft = windowTimeLeft(win);
 
+  const numberColorClass = {
+    good: "text-success",
+    warn: "text-warning",
+    danger: "text-destructive",
+  }[quotaTone(remaining)];
+
   return (
-    <Card size="sm" className="border-border/60 shadow-none">
-      <CardHeader className="border-b border-border/45">
-        <CardTitle>{label}</CardTitle>
-        <CardDescription>
-          {formatWindowDuration(win.windowDurationMins)}
-        </CardDescription>
-        <CardAction className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
-          {remaining}% left
-        </CardAction>
-      </CardHeader>
-
-      <CardContent className="flex flex-col gap-4 pt-4">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-3 text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-            <span>Quota</span>
+    <div
+      className="wc2"
+      style={
+        {
+          "--quota-col":
+            remaining <= 20
+              ? "oklch(70% 0.19 22)"
+              : remaining <= 40
+                ? "oklch(84% 0.18 88)"
+                : "oklch(74% 0.18 142)",
+          "--time-col":
+            timeLeft <= 25
+              ? "oklch(70% 0.19 22)"
+              : timeLeft <= 50
+                ? "oklch(84% 0.18 88)"
+                : "oklch(72% 0.14 222)",
+        } as React.CSSProperties
+      }
+    >
+      <div className="wc2-header">{label}</div>
+      <div className="wc2-cols">
+        <div className="wc2-left">
+          <span className="wc2-col-lbl">Quota</span>
+          <div className="wc2-num wc2-num-q">{remaining}</div>
+          <div className="wc2-sub-lbl">% remaining</div>
+          <div className="wc2-track">
+            <div
+              className="wc2-fill wc2-fill-q"
+              style={{ width: `${remaining}%` }}
+            />
           </div>
-          <Progress
-            value={remaining}
-            aria-label={`${label} quota remaining`}
-            className={cn("h-2 bg-muted/80", quotaProgressClass(remaining))}
-          />
         </div>
-
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-3 text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-            <span className="mb-0">Window</span>
-            <span className="mb-0">{timeLeft}% of window left</span>
+        <div className="wc2-sep" />
+        <div className="wc2-right">
+          <span className="wc2-col-lbl">Window</span>
+          <div className="wc2-num wc2-num-t">{timeLeft}</div>
+          <div className="wc2-sub-lbl">% left</div>
+          <div className="wc2-track">
+            <div
+              className="wc2-fill wc2-fill-t"
+              style={{ width: `${timeLeft}%` }}
+            />
           </div>
-          <Progress
-            value={timeLeft}
-            aria-label={`${label} time remaining`}
-            className={cn("h-2 bg-muted/80", timeProgressClass(timeLeft))}
-          />
-          <p className="font-mono text-xs text-muted-foreground">
-            Resets {formatReset(win.resetsAt)}
-          </p>
+          <div className="wc2-reset">Resets {formatReset(win.resetsAt)}</div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -315,7 +307,7 @@ function App() {
             <p className="text-xs font-semibold tracking-[0.22em] text-primary uppercase">
               Local Codex Monitor
             </p>
-            <h1 className="font-mono text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            <h1 className="font-mono text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
               Codex Usage Limits
             </h1>
           </div>
