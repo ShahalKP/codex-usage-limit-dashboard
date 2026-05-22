@@ -1,3 +1,4 @@
+import { format, intervalToDuration } from "date-fns";
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
@@ -35,7 +36,96 @@ function clampPercent(value: number): number {
 
 function formatReset(timestampSeconds?: number): string {
   if (!timestampSeconds) return "Unknown";
-  return new Date(timestampSeconds * 1000).toLocaleString();
+
+  const date = new Date(timestampSeconds * 1000);
+  const now = new Date();
+  const msUntil = date.getTime() - now.getTime();
+
+  if (msUntil <= 0) return "now";
+
+  const duration = intervalToDuration({ start: now, end: date });
+  const parts: string[] = [];
+
+  if (duration.days && duration.days > 0) parts.push(`${duration.days}d`);
+  if (duration.hours && duration.hours > 0) parts.push(`${duration.hours}h`);
+  if (!duration.days && duration.minutes && duration.minutes > 0) {
+    parts.push(`${duration.minutes}m`);
+  }
+
+  const relative = parts.length > 0 ? `in ${parts.join(" ")}` : "now";
+  const absolute = format(date, "MMM d 'at' h:mm a");
+  return `${relative} (${absolute})`;
+}
+
+function formatFetchTime(iso?: string): string {
+  if (!iso) return "-";
+  return format(new Date(iso), "MMM d, h:mm a");
+}
+
+function quotaTone(remaining: number): "good" | "warn" | "danger" {
+  if (remaining <= 20) return "danger";
+  if (remaining <= 40) return "warn";
+  return "good";
+}
+
+function timeTone(percentLeft: number): "info" | "warn" | "danger" {
+  if (percentLeft <= 25) return "danger";
+  if (percentLeft <= 50) return "warn";
+  return "info";
+}
+
+function windowTimeLeft(win: RateLimitWindow): number {
+  const now = Math.floor(Date.now() / 1000);
+  const windowDurationSecs = win.windowDurationMins * 60;
+  const secsLeft = Math.max(0, win.resetsAt - now);
+
+  if (windowDurationSecs <= 0) return 0;
+
+  return Math.min(100, Math.round((secsLeft / windowDurationSecs) * 100));
+}
+
+function WindowCard({
+  label,
+  win,
+}: {
+  label: string;
+  win: RateLimitWindow;
+}) {
+  const remaining = clampPercent(100 - win.usedPercent);
+  const timeLeft = windowTimeLeft(win);
+
+  return (
+    <section className="windowCard">
+      <h2>{label}</h2>
+
+      <div className="metricBlock">
+        <div className="metricHeader">
+          <span>Quota</span>
+          <strong>{remaining}% quota remaining</strong>
+        </div>
+        <div className="meter" aria-label={`${label} quota remaining`}>
+          <div
+            className={`bar bar-${quotaTone(remaining)}`}
+            style={{ width: `${remaining}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="metricBlock">
+        <div className="metricHeader">
+          <span>Window</span>
+          <strong>{timeLeft}% of window left</strong>
+        </div>
+        <div className="meter" aria-label={`${label} time remaining`}>
+          <div
+            className={`bar bar-${timeTone(timeLeft)}`}
+            style={{ width: `${timeLeft}%` }}
+          />
+        </div>
+        <p className="resetText">Resets {formatReset(win.resetsAt)}</p>
+      </div>
+    </section>
+  );
 }
 
 function App() {
@@ -70,13 +160,17 @@ function App() {
   }, []);
 
   const selected = data?.selectedLimit ?? null;
-  const used = selected?.primary?.usedPercent ?? null;
-  const remaining = used === null ? null : clampPercent(100 - used);
+  const planType = selected?.planType ?? data?.account?.planType ?? null;
+  const windows = [
+    selected?.primary ? { label: "5h Window", win: selected.primary } : null,
+    selected?.secondary
+      ? { label: "7d Window", win: selected.secondary }
+      : null,
+  ].filter((item): item is { label: string; win: RateLimitWindow } => item !== null);
 
   const accountLabel = useMemo(() => {
     if (!data?.account) return "Not logged in";
-    const plan = data.account.planType ? ` · ${data.account.planType}` : "";
-    return `${data.account.email ?? data.account.type}${plan}`;
+    return data.account.email ?? data.account.type;
   }, [data]);
 
   return (
@@ -85,7 +179,7 @@ function App() {
         <div className="header">
           <div>
             <p className="eyebrow">Local Codex Monitor</p>
-            <h1>Codex usage limit</h1>
+            <h1>Codex Usage Limits</h1>
           </div>
           <button onClick={refresh} disabled={loading}>
             {loading ? "Refreshing…" : "Refresh"}
@@ -94,81 +188,33 @@ function App() {
 
         {error ? <div className="error">{error}</div> : null}
 
-        <div className="meta">
-          <div>
-            <span>Account</span>
-            <strong>{accountLabel}</strong>
-          </div>
-          <div>
-            <span>Bucket</span>
-            <strong>{selected?.limitName ?? selected?.limitId ?? "Unknown"}</strong>
-          </div>
-          <div>
-            <span>Fetched</span>
-            <strong>{data ? new Date(data.fetchedAt).toLocaleString() : "—"}</strong>
-          </div>
+        <div className="accountRow">
+          <span>Account</span>
+          <strong>{accountLabel}</strong>
+          {planType ? <em>· {planType}</em> : null}
+          {selected ? (
+            <em>· bucket {selected.limitName ?? selected.limitId}</em>
+          ) : null}
         </div>
 
-        <div className="meterBlock">
-          <div className="meterHeader">
-            <span>Used</span>
-            <strong>{used === null ? "—" : `${used}%`}</strong>
+        {!selected?.primary ? (
+          <div className="emptyState">No rate-limit bucket returned.</div>
+        ) : (
+          <div className="windowsGrid">
+            {windows.map(({ label, win }) => (
+              <WindowCard key={label} label={label} win={win} />
+            ))}
           </div>
-          <div className="meter">
-            <div style={{ width: `${used ?? 0}%` }} />
-          </div>
-        </div>
+        )}
 
-        <div className="meterBlock">
-          <div className="meterHeader">
-            <span>Remaining</span>
-            <strong>{remaining === null ? "—" : `${remaining}%`}</strong>
-          </div>
-          <div className="meter remaining">
-            <div style={{ width: `${remaining ?? 0}%` }} />
-          </div>
-        </div>
-
-        <div className="details">
-          <div>
-            <span>Window</span>
-            <strong>{selected?.primary?.windowDurationMins ?? "—"} minutes</strong>
-          </div>
-          <div>
-            <span>Resets at</span>
-            <strong>{formatReset(selected?.primary?.resetsAt)}</strong>
-          </div>
-          <div>
-            <span>Limit state</span>
-            <strong>{selected?.rateLimitReachedType ?? "OK"}</strong>
-          </div>
-        </div>
-
-        {data?.allLimits?.length ? (
-          <section className="allBuckets">
-            <h2>All returned buckets</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>Bucket</th>
-                  <th>Used</th>
-                  <th>Window</th>
-                  <th>Reset</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.allLimits.map((limit) => (
-                  <tr key={limit.limitId}>
-                    <td>{limit.limitName ?? limit.limitId}</td>
-                    <td>{limit.primary?.usedPercent ?? "—"}%</td>
-                    <td>{limit.primary?.windowDurationMins ?? "—"} min</td>
-                    <td>{formatReset(limit.primary?.resetsAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
+        {selected?.rateLimitReachedType ? (
+          <div className="warning">Limit state: {selected.rateLimitReachedType}</div>
         ) : null}
+
+        <div className="footer">
+          <span>Fetched {formatFetchTime(data?.fetchedAt)}</span>
+          {loading ? <span>Refreshing…</span> : <span>Auto-refreshes every 60s</span>}
+        </div>
       </section>
     </main>
   );
