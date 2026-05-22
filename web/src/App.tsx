@@ -4,7 +4,7 @@ import {
   CircleAlertIcon,
   RefreshCwIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import Loader from "./components/kokonutui/loader.js";
 import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert.js";
@@ -156,7 +156,7 @@ function WindowCard({ label, win }: { label: string; win: RateLimitWindow }) {
   const timeLeft = windowTimeLeft(win);
 
   return (
-    <Card size="sm" className="border-border/60 bg-background/55 shadow-none">
+    <Card size="sm" className="border-border/60 shadow-none">
       <CardHeader className="border-b border-border/45">
         <CardTitle>{label}</CardTitle>
         <CardDescription>
@@ -189,7 +189,7 @@ function WindowCard({ label, win }: { label: string; win: RateLimitWindow }) {
             aria-label={`${label} time remaining`}
             className={cn("h-2 bg-muted/80", timeProgressClass(timeLeft))}
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="font-mono text-xs text-muted-foreground">
             Resets {formatReset(win.resetsAt)}
           </p>
         </div>
@@ -202,13 +202,21 @@ function App() {
   const [data, setData] = useState<UsageSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [liveAnnouncement, setLiveAnnouncement] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/codex/rate-limits");
+      const response = await fetch("/api/codex/rate-limits", {
+        signal: controller.signal,
+      });
       const body = await response.json();
 
       if (!response.ok) {
@@ -216,36 +224,63 @@ function App() {
       }
 
       setData(body);
+      const primary = body.selectedLimit?.primary;
+      const secondary = body.selectedLimit?.secondary;
+      const parts: string[] = [];
+      if (primary) {
+        parts.push(
+          `${formatWindowLabel(primary.windowDurationMins)}: ${clampPercent(100 - primary.usedPercent)}% quota remaining`,
+        );
+      }
+      if (secondary) {
+        parts.push(
+          `${formatWindowLabel(secondary.windowDurationMins)}: ${clampPercent(100 - secondary.usedPercent)}% quota remaining`,
+        );
+      }
+      setLiveAnnouncement(
+        parts.length > 0
+          ? `Data updated. ${parts.join(". ")}.`
+          : "Data updated.",
+      );
     } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     refresh();
     const interval = window.setInterval(refresh, 60_000);
-    return () => window.clearInterval(interval);
-  }, []);
+    return () => {
+      window.clearInterval(interval);
+      abortRef.current?.abort();
+    };
+  }, [refresh]);
 
   const selected = data?.selectedLimit ?? null;
   const planType = selected?.planType ?? data?.account?.planType ?? null;
-  const windows = [
-    selected?.primary
-      ? {
-          label: formatWindowLabel(selected.primary.windowDurationMins),
-          win: selected.primary,
-        }
-      : null,
-    selected?.secondary
-      ? {
-          label: formatWindowLabel(selected.secondary.windowDurationMins),
-          win: selected.secondary,
-        }
-      : null,
-  ].filter(
-    (item): item is { label: string; win: RateLimitWindow } => item !== null,
+  const windows = useMemo(
+    () =>
+      [
+        selected?.primary
+          ? {
+              label: formatWindowLabel(selected.primary.windowDurationMins),
+              win: selected.primary,
+            }
+          : null,
+        selected?.secondary
+          ? {
+              label: formatWindowLabel(selected.secondary.windowDurationMins),
+              win: selected.secondary,
+            }
+          : null,
+      ].filter(
+        (item): item is { label: string; win: RateLimitWindow } =>
+          item !== null,
+      ),
+    [selected],
   );
 
   const accountLabel = useMemo(() => {
@@ -270,7 +305,10 @@ function App() {
   }
 
   return (
-    <main className="min-h-svh px-4 py-10 sm:px-6 lg:px-8">
+    <main className="flex min-h-svh flex-col justify-center px-4 py-10 sm:px-6 lg:px-8">
+      <span aria-live="polite" aria-atomic="true" className="sr-only">
+        {liveAnnouncement}
+      </span>
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
         <header className="flex flex-col gap-4 border-b border-border/50 pb-6 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex flex-col gap-2">
@@ -296,19 +334,24 @@ function App() {
           </Button>
         </header>
 
-        <section className="grid gap-3 rounded-xl border border-border/50 bg-background/55 p-4 md:grid-cols-3">
+        <section
+          aria-label="Account information"
+          className="grid gap-3 rounded-xl border border-border/50 p-4 md:grid-cols-3"
+        >
           <div className="flex flex-col gap-1">
             <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
               Account
             </p>
-            <p className="font-medium text-foreground">{accountLabel}</p>
+            <p className="font-mono font-medium text-foreground">
+              {accountLabel}
+            </p>
           </div>
 
           <div className="flex flex-col gap-1">
             <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
               Plan / Bucket
             </p>
-            <p className="font-medium text-foreground">
+            <p className="font-mono font-medium text-foreground">
               {planType ?? "Unknown"}
               {selected ? ` · ${selected.limitName ?? selected.limitId}` : ""}
             </p>
@@ -318,7 +361,7 @@ function App() {
             <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
               Fetched
             </p>
-            <p className="font-medium text-foreground">
+            <p className="font-mono font-medium text-foreground">
               {formatFetchTime(data?.fetchedAt)}
             </p>
           </div>
@@ -341,7 +384,10 @@ function App() {
             </AlertDescription>
           </Alert>
         ) : (
-          <section className="grid gap-4 lg:grid-cols-2">
+          <section
+            aria-label="Quota windows"
+            className="grid gap-4 lg:grid-cols-2"
+          >
             {windows.map(({ label, win }) => (
               <WindowCard key={label} label={label} win={win} />
             ))}
@@ -357,6 +403,11 @@ function App() {
             </AlertDescription>
           </Alert>
         ) : null}
+
+        <footer className="flex items-center justify-between border-t border-border/30 pt-4 font-sans text-[11px] text-muted-foreground">
+          <span>Auto-refreshes every 60s</span>
+          <span>Last fetch: {formatFetchTime(data?.fetchedAt)}</span>
+        </footer>
       </div>
     </main>
   );
