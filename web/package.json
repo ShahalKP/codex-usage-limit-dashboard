@@ -1,4 +1,9 @@
 {
   "private": true,
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "motion": "^12.40.0",
+    "tailwind-merge": "^3.6.0"
+  }
 }
