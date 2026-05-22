@@ -14,7 +14,6 @@ import {
   CardAction,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "./components/ui/card.js";
@@ -127,6 +126,31 @@ function timeProgressClass(percentLeft: number): string {
   return "[&>[data-slot=progress-indicator]]:bg-info";
 }
 
+function formatWindowDuration(mins: number): string {
+  if (mins >= 1440) {
+    const days = Math.round(mins / 1440);
+    return days === 1 ? "1-day quota window" : `${days}-day quota window`;
+  }
+  if (mins >= 60) {
+    const hours = Math.round(mins / 60);
+    return hours === 1 ? "1-hour quota window" : `${hours}-hour quota window`;
+  }
+  return `${mins}-minute quota window`;
+}
+
+function formatWindowLabel(mins: number): string {
+  if (mins >= 1440) return `${Math.round(mins / 1440)}d Window`;
+  if (mins >= 60) return `${Math.round(mins / 60)}h Window`;
+  return `${mins}m Window`;
+}
+
+function humanizeRateLimitType(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function WindowCard({ label, win }: { label: string; win: RateLimitWindow }) {
   const remaining = clampPercent(100 - win.usedPercent);
   const timeLeft = windowTimeLeft(win);
@@ -136,7 +160,7 @@ function WindowCard({ label, win }: { label: string; win: RateLimitWindow }) {
       <CardHeader className="border-b border-border/45">
         <CardTitle>{label}</CardTitle>
         <CardDescription>
-          {win.windowDurationMins} minute quota window
+          {formatWindowDuration(win.windowDurationMins)}
         </CardDescription>
         <CardAction className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
           {remaining}% left
@@ -145,9 +169,8 @@ function WindowCard({ label, win }: { label: string; win: RateLimitWindow }) {
 
       <CardContent className="flex flex-col gap-4 pt-4">
         <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-3 text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-            <span className="mb-0">Quota</span>
-            <span className="mb-0">{remaining}% quota remaining</span>
+          <div className="flex items-center gap-3 text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+            <span>Quota</span>
           </div>
           <Progress
             value={remaining}
@@ -209,9 +232,17 @@ function App() {
   const selected = data?.selectedLimit ?? null;
   const planType = selected?.planType ?? data?.account?.planType ?? null;
   const windows = [
-    selected?.primary ? { label: "5h Window", win: selected.primary } : null,
+    selected?.primary
+      ? {
+          label: formatWindowLabel(selected.primary.windowDurationMins),
+          win: selected.primary,
+        }
+      : null,
     selected?.secondary
-      ? { label: "7d Window", win: selected.secondary }
+      ? {
+          label: formatWindowLabel(selected.secondary.windowDurationMins),
+          win: selected.secondary,
+        }
       : null,
   ].filter(
     (item): item is { label: string; win: RateLimitWindow } => item !== null,
@@ -240,111 +271,92 @@ function App() {
 
   return (
     <main className="min-h-svh px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-        <Card className="border-border/60 bg-card/95 shadow-2xl shadow-black/30 backdrop-blur-sm">
-          <CardHeader className="gap-4 border-b border-border/50">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex flex-col gap-2">
-                <p className="text-xs font-semibold tracking-[0.22em] text-primary uppercase">
-                  Local Codex Monitor
-                </p>
-                <div className="flex flex-col gap-1">
-                  <CardTitle className="text-3xl sm:text-4xl">
-                    Codex Usage Limits
-                  </CardTitle>
-                  <CardDescription>
-                    Dashboard view aligned to the CLI windows, quota remaining,
-                    and relative reset timing.
-                  </CardDescription>
-                </div>
-              </div>
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
+        <header className="flex flex-col gap-4 border-b border-border/50 pb-6 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-semibold tracking-[0.22em] text-primary uppercase">
+              Local Codex Monitor
+            </p>
+            <h1 className="font-mono text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+              Codex Usage Limits
+            </h1>
+          </div>
 
-              <Button
-                onClick={refresh}
-                disabled={loading}
-                variant="outline"
-                className="sm:self-start"
-              >
-                <RefreshCwIcon
-                  data-icon="inline-start"
-                  className={loading ? "animate-spin" : undefined}
-                />
-                {loading ? "Refreshing…" : "Refresh"}
-              </Button>
-            </div>
-          </CardHeader>
+          <Button
+            onClick={refresh}
+            disabled={loading}
+            variant="outline"
+            className="sm:self-start"
+          >
+            <RefreshCwIcon
+              data-icon="inline-start"
+              className={loading ? "animate-spin" : undefined}
+            />
+            {loading ? "Refreshing…" : "Refresh"}
+          </Button>
+        </header>
 
-          <CardContent className="flex flex-col gap-6 pt-6">
-            <section className="grid gap-3 rounded-xl border border-border/50 bg-background/55 p-4 md:grid-cols-3">
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-                  Account
-                </p>
-                <p className="font-medium text-foreground">{accountLabel}</p>
-              </div>
+        <section className="grid gap-3 rounded-xl border border-border/50 bg-background/55 p-4 md:grid-cols-3">
+          <div className="flex flex-col gap-1">
+            <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+              Account
+            </p>
+            <p className="font-medium text-foreground">{accountLabel}</p>
+          </div>
 
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-                  Plan / Bucket
-                </p>
-                <p className="font-medium text-foreground">
-                  {planType ?? "Unknown"}
-                  {selected
-                    ? ` · ${selected.limitName ?? selected.limitId}`
-                    : ""}
-                </p>
-              </div>
+          <div className="flex flex-col gap-1">
+            <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+              Plan / Bucket
+            </p>
+            <p className="font-medium text-foreground">
+              {planType ?? "Unknown"}
+              {selected ? ` · ${selected.limitName ?? selected.limitId}` : ""}
+            </p>
+          </div>
 
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-                  Fetched
-                </p>
-                <p className="font-medium text-foreground">
-                  {formatFetchTime(data?.fetchedAt)}
-                </p>
-              </div>
-            </section>
+          <div className="flex flex-col gap-1">
+            <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+              Fetched
+            </p>
+            <p className="font-medium text-foreground">
+              {formatFetchTime(data?.fetchedAt)}
+            </p>
+          </div>
+        </section>
 
-            {error ? (
-              <Alert variant="destructive">
-                <AlertTriangleIcon />
-                <AlertTitle>Request failed</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
+        {error ? (
+          <Alert variant="destructive">
+            <AlertTriangleIcon />
+            <AlertTitle>Request failed</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
 
-            {!selected?.primary ? (
-              <Alert>
-                <CircleAlertIcon />
-                <AlertTitle>No rate-limit bucket returned</AlertTitle>
-                <AlertDescription>
-                  The Codex API responded without a primary usage window.
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <section className="grid gap-4 lg:grid-cols-2">
-                {windows.map(({ label, win }) => (
-                  <WindowCard key={label} label={label} win={win} />
-                ))}
-              </section>
-            )}
+        {!selected?.primary ? (
+          <Alert>
+            <CircleAlertIcon />
+            <AlertTitle>No rate-limit bucket returned</AlertTitle>
+            <AlertDescription>
+              The Codex API responded without a primary usage window.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <section className="grid gap-4 lg:grid-cols-2">
+            {windows.map(({ label, win }) => (
+              <WindowCard key={label} label={label} win={win} />
+            ))}
+          </section>
+        )}
 
-            {selected?.rateLimitReachedType ? (
-              <Alert variant="destructive">
-                <AlertTriangleIcon />
-                <AlertTitle>Limit state reported</AlertTitle>
-                <AlertDescription>
-                  {selected.rateLimitReachedType}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-          </CardContent>
-
-          <CardFooter className="flex flex-col items-start justify-between gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center">
-            <p>Fetched {formatFetchTime(data?.fetchedAt)}</p>
-            <p>{loading ? "Refreshing…" : "Auto-refreshes every 60s"}</p>
-          </CardFooter>
-        </Card>
+        {selected?.rateLimitReachedType ? (
+          <Alert variant="destructive">
+            <AlertTriangleIcon />
+            <AlertTitle>Limit state reported</AlertTitle>
+            <AlertDescription>
+              {humanizeRateLimitType(selected.rateLimitReachedType)}
+            </AlertDescription>
+          </Alert>
+        ) : null}
       </div>
     </main>
   );
