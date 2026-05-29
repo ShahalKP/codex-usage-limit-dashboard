@@ -290,6 +290,15 @@ export function UsageApp({ watch }: { watch: boolean }) {
       {/* Success state */}
       {state.phase === "done" && snapshot && (
         <Box flexDirection="column">
+          {snapshot.history?.warning && (
+            <Box marginBottom={1} flexDirection="column">
+              <Text color="yellow" bold>
+                ⚠ History not updated
+              </Text>
+              <Text color="yellow">{snapshot.history.warning}</Text>
+            </Box>
+          )}
+
           {/* Account row */}
           <Box marginBottom={1} gap={1}>
             <Text dimColor>Account</Text>

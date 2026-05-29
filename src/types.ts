@@ -16,13 +16,11 @@ export type JsonRpcResponse<T = unknown> = {
   params?: unknown;
 };
 
-export type CodexAccount =
-  | null
-  | {
-      type: "apiKey" | "chatgpt" | "chatgptAuthTokens";
-      email?: string;
-      planType?: string | null;
-    };
+export type CodexAccount = null | {
+  type: "apiKey" | "chatgpt" | "chatgptAuthTokens";
+  email?: string;
+  planType?: string | null;
+};
 
 export type RateLimitWindow = {
   usedPercent: number;
@@ -50,9 +48,21 @@ export type RateLimitsReadResult = {
   rateLimitsByLimitId?: Record<string, CodexRateLimit>;
 };
 
-export type UsageSnapshot = {
+export type HistoryPersistenceAction = "inserted" | "coalesced";
+
+export type UsageSnapshotData = {
   fetchedAt: string;
   account: CodexAccount;
   selectedLimit: CodexRateLimit | null;
   allLimits: CodexRateLimit[];
+};
+
+export type UsageHistoryStatus = {
+  persisted: boolean;
+  action: HistoryPersistenceAction | null;
+  warning: string | null;
+};
+
+export type UsageSnapshot = UsageSnapshotData & {
+  history?: UsageHistoryStatus;
 };

@@ -2,6 +2,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json && vite build --config web/vite.config.ts",
+    "test": "vitest run",
     "usage": "tsx src/cli.ts usage",
     "usage:json": "tsx src/cli.ts usage --json",
     "login": "tsx src/cli.ts login",
@@ -12,6 +13,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.8",
     "@vitejs/plugin-react": "^5.0.0",
+    "better-sqlite3": "^12.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "commander": "^14.0.3",
@@ -23,19 +25,21 @@
     "radix-ui": "^1.4.3",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
-    "tailwindcss": "^4.1.8",
     "tailwind-merge": "^3.3.0",
-    "tw-animate-css": "^1.3.0",
+    "tailwindcss": "^4.1.8",
     "tsx": "^4.20.5",
+    "tw-animate-css": "^1.3.0",
     "typescript": "^5.9.3",
     "vite": "^7.2.7",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.6",
     "@types/node": "^25.0.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "shadcn": "^4.8.0"
+    "shadcn": "^4.8.0",
+    "vitest": "^4.1.7"
   }
 }

@@ -1,10 +1,15 @@
 import type { z } from "zod";
 import { CodexRpcClient } from "./codexRpc.js";
+import { persistUsageSnapshot } from "./history/store.js";
 import {
   AccountReadResultSchema,
   RateLimitsReadResultSchema,
 } from "./schemas.js";
-import type { CodexRateLimit, UsageSnapshot } from "./types.js";
+import type {
+  CodexRateLimit,
+  UsageSnapshot,
+  UsageSnapshotData,
+} from "./types.js";
 
 type ValidatedLimitsResult = z.infer<typeof RateLimitsReadResultSchema>;
 
@@ -59,14 +64,37 @@ export async function fetchCodexUsage(): Promise<UsageSnapshot> {
       );
     }
 
-    return {
+    return withHistoryPersistence({
       fetchedAt: new Date().toISOString(),
       account: accountResult.data.account,
       selectedLimit: pickCodexLimit(limitsResult.data),
       allLimits: allLimits(limitsResult.data),
-    };
+    });
   } finally {
     await client.stop();
+  }
+}
+
+function withHistoryPersistence(snapshot: UsageSnapshotData): UsageSnapshot {
+  try {
+    const result = persistUsageSnapshot(snapshot);
+    return {
+      ...snapshot,
+      history: {
+        action: result.action,
+        persisted: true,
+        warning: null,
+      },
+    };
+  } catch (error) {
+    return {
+      ...snapshot,
+      history: {
+        action: null,
+        persisted: false,
+        warning: `History was not updated: ${error instanceof Error ? error.message : String(error)}`,
+      },
+    };
   }
 }
 
