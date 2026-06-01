@@ -1,5 +1,5 @@
 import { format, intervalToDuration } from "date-fns";
-import { Box, Text, useApp, useInput } from "ink";
+import { Box, Text, useApp, useInput, useWindowSize } from "ink";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RateLimitWindow, UsageSnapshot } from "../types.js";
 import { fetchCodexUsage } from "../usage.js";
@@ -176,6 +176,7 @@ type AppState =
 
 export function UsageApp({ watch }: { watch: boolean }) {
   const { exit, waitUntilRenderFlush } = useApp();
+  const { columns } = useWindowSize();
   const [state, setState] = useState<AppState>({ phase: "loading" });
   const [refreshing, setRefreshing] = useState(false);
   const [countdown, setCountdown] = useState(60);
@@ -323,15 +324,26 @@ export function UsageApp({ watch }: { watch: boolean }) {
             </Box>
           )}
 
-          {/* 5h window */}
-          {limit?.primary && (
-            <WindowCard label="5h Window" window={limit.primary} />
-          )}
+          {/* Windows */}
+          <Box
+            flexDirection={columns >= 90 ? "row" : "column"}
+            gap={columns >= 90 ? 1 : 0}
+            maxWidth={120}
+          >
+            {/* 5h window */}
+            {limit?.primary && (
+              <Box flexGrow={1}>
+                <WindowCard label="5h Window" window={limit.primary} />
+              </Box>
+            )}
 
-          {/* 7d window */}
-          {limit?.secondary && (
-            <WindowCard label="7d Window" window={limit.secondary} />
-          )}
+            {/* 7d window */}
+            {limit?.secondary && (
+              <Box flexGrow={1}>
+                <WindowCard label="7d Window" window={limit.secondary} />
+              </Box>
+            )}
+          </Box>
 
           {/* Limit state warning */}
           {limit?.rateLimitReachedType && (
