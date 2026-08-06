@@ -4,6 +4,7 @@ import { z } from "zod";
 import { clearHistoryEvents, listHistoryEvents } from "./history/store.js";
 import { HISTORY_RANGE_VALUES } from "./history/types.js";
 import { fetchCodexUsage } from "./usage.js";
+import { fetchClaudeUsage } from "./claudeUsage.js";
 
 const port = Number(process.env.PORT || 8787);
 
@@ -36,6 +37,17 @@ export function createServerApp(): express.Express {
   app.get("/api/codex/rate-limits", async (_req, res) => {
     try {
       const usage = await fetchCodexUsage();
+      res.json(usage);
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  app.get("/api/claude/usage", async (_req, res) => {
+    try {
+      const usage = await fetchClaudeUsage();
       res.json(usage);
     } catch (error) {
       res.status(500).json({

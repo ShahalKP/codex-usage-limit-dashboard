@@ -6,9 +6,14 @@ import { persistUsageSnapshot } from "./history/store.js";
 import { HISTORY_DB_FILE_NAME } from "./history/db.js";
 
 const fetchCodexUsageMock = vi.fn();
+const fetchClaudeUsageMock = vi.fn();
 
 vi.mock("./usage.js", () => ({
   fetchCodexUsage: fetchCodexUsageMock,
+}));
+
+vi.mock("./claudeUsage.js", () => ({
+  fetchClaudeUsage: fetchClaudeUsageMock,
 }));
 
 function makeDatabasePath(): string {
@@ -26,6 +31,7 @@ describe("createServerApp", () => {
   beforeEach(async () => {
     vi.resetModules();
     fetchCodexUsageMock.mockReset();
+    fetchClaudeUsageMock.mockReset();
     databasePath = makeDatabasePath();
     process.env.CODEX_USAGE_DB_PATH = databasePath;
 
@@ -153,5 +159,58 @@ describe("createServerApp", () => {
     expect(body.history.warning).toBe(
       "History was not updated: database is locked",
     );
+  });
+
+  it("returns the claude usage snapshot payload as JSON", async () => {
+    fetchClaudeUsageMock.mockResolvedValue({
+      fetchedAt: "2026-08-06T10:00:00.000Z",
+      account: {
+        type: "claude",
+        email: "dev@example.com",
+        orgName: "Acme",
+        subscriptionType: "team",
+        userRateLimitTier: "default_claude_max_5x",
+        organizationRateLimitTier: "default_raven",
+      },
+      windows: [
+        {
+          label: "Last 5 hours",
+          lookbackMins: 300,
+          since: "2026-08-06T05:00:00.000Z",
+          responses: 3,
+          inputTokens: 100,
+          outputTokens: 50,
+          cacheCreationTokens: 10,
+          cacheReadTokens: 5,
+          byModel: [],
+        },
+      ],
+      scan: {
+        filesScanned: 10,
+        responsesCounted: 3,
+        malformedLines: 0,
+        elapsedMs: 50,
+      },
+    });
+
+    const response = await fetch(`${baseUrl}/api/claude/usage`);
+    const body = (await response.json()) as {
+      account: { email: string } | null;
+      windows: Array<{ label: string }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.account?.email).toBe("dev@example.com");
+    expect(body.windows[0]?.label).toBe("Last 5 hours");
+  });
+
+  it("returns 500 with the error message when fetchClaudeUsage rejects", async () => {
+    fetchClaudeUsageMock.mockRejectedValue(new Error("claude auth status failed"));
+
+    const response = await fetch(`${baseUrl}/api/claude/usage`);
+    const body = (await response.json()) as { error: string };
+
+    expect(response.status).toBe(500);
+    expect(body.error).toBe("claude auth status failed");
   });
 });
