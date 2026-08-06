@@ -11,6 +11,7 @@ import { createRoot } from "react-dom/client";
 import Loader from "./components/kokonutui/loader.js";
 import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert.js";
 import { Button } from "./components/ui/button.js";
+import { ClaudeUsageView } from "./components/ClaudeUsageView.js";
 import "./styles.css";
 
 type HistoryRange = "24h" | "7d" | "30d" | "all";
@@ -357,7 +358,7 @@ function TrendChart({ points }: { points: TrendPoint[] }) {
   );
 }
 
-function App() {
+function CodexDashboard() {
   const [data, setData] = useState<UsageSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -992,6 +993,29 @@ function App() {
         </footer>
       </div>
     </main>
+  );
+}
+
+function App() {
+  const [provider, setProvider] = useState<"codex" | "claude">("codex");
+  return (
+    <>
+      <div className="mx-auto flex w-full max-w-6xl gap-2 px-4 pt-6">
+        <Button
+          variant={provider === "codex" ? "secondary" : "ghost"}
+          onClick={() => setProvider("codex")}
+        >
+          Codex
+        </Button>
+        <Button
+          variant={provider === "claude" ? "secondary" : "ghost"}
+          onClick={() => setProvider("claude")}
+        >
+          Claude
+        </Button>
+      </div>
+      {provider === "codex" ? <CodexDashboard /> : <ClaudeUsageView />}
+    </>
   );
 }
 
