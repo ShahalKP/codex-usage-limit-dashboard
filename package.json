@@ -5,6 +5,8 @@
     "test": "vitest run",
     "usage": "tsx src/cli.ts usage",
     "usage:json": "tsx src/cli.ts usage --json",
+    "claude-usage": "tsx src/cli.ts claude-usage",
+    "claude-usage:json": "tsx src/cli.ts claude-usage --json",
     "login": "tsx src/cli.ts login",
     "server": "tsx src/server.ts",
     "web": "vite --host 127.0.0.1 --config web/vite.config.ts",
