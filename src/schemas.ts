@@ -34,3 +34,13 @@ export const RateLimitsReadResultSchema = z.object({
   rateLimits: CodexRateLimitSchema.nullable().optional(),
   rateLimitsByLimitId: z.record(z.string(), CodexRateLimitSchema).optional(),
 });
+
+export const ClaudeAuthStatusSchema = z.object({
+  loggedIn: z.boolean(),
+  authMethod: z.string().optional(),
+  apiProvider: z.string().optional(),
+  email: z.string().optional(),
+  orgId: z.string().optional(),
+  orgName: z.string().optional(),
+  subscriptionType: z.string().optional(),
+});

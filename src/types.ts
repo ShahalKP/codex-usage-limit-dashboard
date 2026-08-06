@@ -66,3 +66,56 @@ export type UsageHistoryStatus = {
 export type UsageSnapshot = UsageSnapshotData & {
   history?: UsageHistoryStatus;
 };
+
+export type ClaudeAuthStatus = {
+  loggedIn: boolean;
+  authMethod?: string;
+  apiProvider?: string;
+  email?: string;
+  orgId?: string;
+  orgName?: string;
+  subscriptionType?: string;
+};
+
+export type ClaudeAccount = null | {
+  type: "claude";
+  email?: string;
+  orgName?: string | null;
+  subscriptionType?: string | null;
+  userRateLimitTier?: string | null;
+  organizationRateLimitTier?: string | null;
+};
+
+export type ClaudeModelUsage = {
+  model: string;
+  responses: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+};
+
+/** A rolling lookback over local logs — NOT a quota window. */
+export type ClaudeUsageWindow = {
+  label: string; // e.g. "Last 5 hours"
+  lookbackMins: number; // 300 | 10080
+  since: string; // ISO
+  responses: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  byModel: ClaudeModelUsage[]; // sorted by outputTokens desc
+};
+
+export type ClaudeUsageSnapshot = {
+  fetchedAt: string;
+  account: ClaudeAccount;
+  windows: ClaudeUsageWindow[]; // [5h, 7d]
+  scan: {
+    filesScanned: number;
+    responsesCounted: number;
+    malformedLines: number;
+    elapsedMs: number;
+  };
+};
