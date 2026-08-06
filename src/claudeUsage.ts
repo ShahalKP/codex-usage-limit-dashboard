@@ -138,73 +138,77 @@ export async function scanClaudeUsage(options?: {
   const seen = new Set<string>();
 
   for (const file of files) {
-    let lines: AsyncIterable<string>;
     try {
-      lines = createInterface({ input: createReadStream(file, { encoding: "utf8" }) });
+      const lines = createInterface({
+        input: createReadStream(file, { encoding: "utf8" }),
+      });
+
+      for await (const line of lines) {
+        if (!line.includes('"usage"')) continue;
+
+        let record: unknown;
+        try {
+          record = JSON.parse(line);
+        } catch {
+          malformedLines++;
+          continue;
+        }
+
+        if (typeof record !== "object" || record === null) {
+          malformedLines++;
+          continue;
+        }
+        const rec = record as Record<string, unknown>;
+        if (rec.type !== "assistant") continue;
+
+        const message = rec.message as Record<string, unknown> | undefined;
+        const usage = message?.usage as Record<string, unknown> | undefined;
+        if (!usage) continue;
+
+        const key = (message?.id as string | undefined) ?? (rec.requestId as string | undefined);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+
+        const tsValue = rec.timestamp;
+        const ts = typeof tsValue === "string" ? Date.parse(tsValue) : NaN;
+        if (Number.isNaN(ts)) {
+          malformedLines++;
+          continue;
+        }
+
+        responsesCounted++;
+
+        const model = (message?.model as string | undefined) ?? "unknown";
+        const inputTokens = Number(usage.input_tokens) || 0;
+        const outputTokens = Number(usage.output_tokens) || 0;
+        const cacheCreationTokens = Number(usage.cache_creation_input_tokens) || 0;
+        const cacheReadTokens = Number(usage.cache_read_input_tokens) || 0;
+
+        for (let i = 0; i < WINDOW_DEFS.length; i++) {
+          const def = WINDOW_DEFS[i];
+          const ageMins = (now.getTime() - ts) / 60_000;
+          if (ageMins < 0 || ageMins > def.lookbackMins) continue;
+
+          const window = windows[i];
+          window.responses++;
+          window.inputTokens += inputTokens;
+          window.outputTokens += outputTokens;
+          window.cacheCreationTokens += cacheCreationTokens;
+          window.cacheReadTokens += cacheReadTokens;
+
+          const bucket = getOrCreateModelBucket(byModelMaps[i], model);
+          bucket.responses++;
+          bucket.inputTokens += inputTokens;
+          bucket.outputTokens += outputTokens;
+          bucket.cacheCreationTokens += cacheCreationTokens;
+          bucket.cacheReadTokens += cacheReadTokens;
+        }
+      }
     } catch {
+      // Unreadable or mid-scan-deleted file (e.g. EACCES, ENOENT surfaced
+      // asynchronously during the read). Skip this file, keep whatever was
+      // already accumulated from it, move on to the next file.
       continue;
-    }
-
-    for await (const line of lines) {
-      if (!line.includes('"usage"')) continue;
-
-      let record: unknown;
-      try {
-        record = JSON.parse(line);
-      } catch {
-        malformedLines++;
-        continue;
-      }
-
-      if (typeof record !== "object" || record === null) {
-        malformedLines++;
-        continue;
-      }
-      const rec = record as Record<string, unknown>;
-      if (rec.type !== "assistant") continue;
-
-      const message = rec.message as Record<string, unknown> | undefined;
-      const usage = message?.usage as Record<string, unknown> | undefined;
-      if (!usage) continue;
-
-      const key = (message?.id as string | undefined) ?? (rec.requestId as string | undefined);
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-
-      const tsValue = rec.timestamp;
-      const ts = typeof tsValue === "string" ? Date.parse(tsValue) : NaN;
-      if (Number.isNaN(ts)) {
-        malformedLines++;
-        continue;
-      }
-
-      responsesCounted++;
-
-      const model = (message?.model as string | undefined) ?? "unknown";
-      const inputTokens = Number(usage.input_tokens) || 0;
-      const outputTokens = Number(usage.output_tokens) || 0;
-      const cacheCreationTokens = Number(usage.cache_creation_input_tokens) || 0;
-      const cacheReadTokens = Number(usage.cache_read_input_tokens) || 0;
-
-      for (let i = 0; i < WINDOW_DEFS.length; i++) {
-        const def = WINDOW_DEFS[i];
-        const ageMins = (now.getTime() - ts) / 60_000;
-        if (ageMins < 0 || ageMins > def.lookbackMins) continue;
-
-        const window = windows[i];
-        window.responses++;
-        window.inputTokens += inputTokens;
-        window.outputTokens += outputTokens;
-        window.cacheCreationTokens += cacheCreationTokens;
-        window.cacheReadTokens += cacheReadTokens;
-
-        const bucket = getOrCreateModelBucket(byModelMaps[i], model);
-        bucket.responses++;
-        bucket.inputTokens += inputTokens;
-        bucket.outputTokens += outputTokens;
-        bucket.cacheCreationTokens += cacheCreationTokens;
-        bucket.cacheReadTokens += cacheReadTokens;
-      }
     }
   }
 
@@ -225,7 +229,11 @@ export async function scanClaudeUsage(options?: {
   };
 }
 
-export async function fetchClaudeUsage(): Promise<ClaudeUsageSnapshot> {
+export async function fetchClaudeUsage(options?: {
+  root?: string;
+  now?: Date;
+  configPath?: string;
+}): Promise<ClaudeUsageSnapshot> {
   const fetchedAt = new Date().toISOString();
   const raw = await readClaudeAuthStatus();
   const parsed = ClaudeAuthStatusSchema.safeParse(raw);
@@ -233,13 +241,13 @@ export async function fetchClaudeUsage(): Promise<ClaudeUsageSnapshot> {
     throw new Error(`Unexpected \`claude auth status\` response: ${parsed.error.message}`);
   }
   const auth = parsed.data;
-  const scan = await scanClaudeUsage();
+  const scan = await scanClaudeUsage({ root: options?.root, now: options?.now });
 
   if (!auth.loggedIn) {
     return { fetchedAt, account: null, windows: scan.windows, scan: scan.scan };
   }
 
-  const tiers = readClaudeTiers();
+  const tiers = readClaudeTiers(options?.configPath);
   return {
     fetchedAt,
     account: {
