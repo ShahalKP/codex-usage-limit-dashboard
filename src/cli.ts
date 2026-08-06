@@ -8,7 +8,9 @@ import { parseHistoryRange } from "./history/types.js";
 import { renderLogin } from "./tui/LoginApp.js";
 import { renderHistory } from "./tui/HistoryApp.js";
 import { renderUsage } from "./tui/UsageApp.js";
+import { renderClaudeUsage } from "./tui/ClaudeUsageApp.js";
 import { fetchCodexUsage } from "./usage.js";
+import { fetchClaudeUsage } from "./claudeUsage.js";
 
 const program = new Command()
   .name("codex-usage")
@@ -16,7 +18,7 @@ const program = new Command()
   .version("1.0.0")
   .addHelpText(
     "after",
-    "\nExamples:\n  codex-usage usage\n  codex-usage usage --watch\n  codex-usage usage --json\n  codex-usage history --range 24h\n  codex-usage history --json\n  codex-usage history:clear --range 7d\n  codex-usage login",
+    "\nExamples:\n  codex-usage usage\n  codex-usage usage --watch\n  codex-usage usage --json\n  codex-usage history --range 24h\n  codex-usage history --json\n  codex-usage history:clear --range 7d\n  codex-usage login\n  codex-usage claude-usage\n  codex-usage claude-usage --json",
   );
 
 program
@@ -31,6 +33,20 @@ program
       return;
     }
     const { waitUntilExit } = renderUsage({ watch: opts.watch ?? false });
+    await waitUntilExit();
+  });
+
+program
+  .command("claude-usage")
+  .description("Show local Claude Code token consumption (last 5h / 7d)")
+  .option("--json", "Output raw JSON (skips TUI)")
+  .action(async (opts: { json?: boolean }) => {
+    if (opts.json) {
+      const snapshot = await fetchClaudeUsage();
+      console.log(JSON.stringify(snapshot, null, 2));
+      return;
+    }
+    const { waitUntilExit } = renderClaudeUsage();
     await waitUntilExit();
   });
 
