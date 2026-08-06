@@ -13,7 +13,7 @@ It has two modes:
 
 | Layer           | Tech                                                                  |
 | --------------- | --------------------------------------------------------------------- |
-| Runtime         | Node.js 20+, `tsx` (no compile step for dev)                          |
+| Runtime         | Node.js 22 (pinned via .nvmrc), `tsx` (no compile step for dev)       |
 | Backend         | Express 5, JSON-RPC over stdio to `codex app-server`                  |
 | History storage | `better-sqlite3` (native module — see Prerequisites)                  |
 | Frontend        | React 19, Vite 7, Tailwind CSS 4, shadcn/ui (radix-nova) + Radix UI    |
@@ -56,7 +56,10 @@ The `@/*` path alias (`web/src/*`) is defined in both `tsconfig.json` and `web/v
 
 ## Prerequisites
 
-- **Node.js 20+** — `node -v` to verify.
+- **Node.js 22, pinned via `.nvmrc`** — run `nvm use` in the repo root to select it.
+  `better-sqlite3` compiles a native module against the Node ABI it was
+  installed under, so mixing Node majors after install breaks it. If you do
+  switch majors, run `pnpm rebuild better-sqlite3`.
 - **pnpm** — `npm i -g pnpm` if not installed.
 - **Codex CLI** (`codex`) — must be on `PATH`. Verify with `codex --version`.
 - A ChatGPT account with Codex access (Pro or higher).

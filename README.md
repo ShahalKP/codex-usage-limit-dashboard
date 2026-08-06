@@ -13,7 +13,7 @@ It supports:
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 22 (see `.nvmrc`)
 - Codex CLI installed and available as `codex`
 - A Codex-capable ChatGPT plan/account
 
@@ -23,6 +23,8 @@ Check:
 node -v
 codex --version
 ```
+
+Run `nvm use` in the repo root before the setup commands below to select the pinned Node version.
 
 ## Install
 
