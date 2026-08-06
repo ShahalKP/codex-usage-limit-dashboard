@@ -56,7 +56,12 @@ export async function fetchCodexUsage(): Promise<UsageSnapshot> {
       );
     }
 
-    const rawLimits = await client.request<unknown>("account/rateLimits/read");
+    let rawLimits: unknown;
+    try {
+      rawLimits = await client.request<unknown>("account/rateLimits/read");
+    } catch (error) {
+      throw normalizeRateLimitsReadError(error);
+    }
     const limitsResult = RateLimitsReadResultSchema.safeParse(rawLimits);
     if (!limitsResult.success) {
       throw new Error(
@@ -73,6 +78,21 @@ export async function fetchCodexUsage(): Promise<UsageSnapshot> {
   } finally {
     await client.stop();
   }
+}
+
+function normalizeRateLimitsReadError(error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (
+    message.includes("account/rateLimits/read failed") &&
+    message.includes("unknown variant `prolite`")
+  ) {
+    return new Error(
+      "Codex CLI could not read rate limits because its app-server does not recognize ChatGPT plan type \"prolite\". This is a Codex CLI compatibility issue, not a dashboard schema error. Upgrade Codex CLI with `npm install -g @openai/codex@latest` or set CODEX_BIN to a newer codex binary, then retry.",
+    );
+  }
+
+  return error instanceof Error ? error : new Error(message);
 }
 
 function withHistoryPersistence(snapshot: UsageSnapshotData): UsageSnapshot {
