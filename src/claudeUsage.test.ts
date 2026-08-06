@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,6 +18,25 @@ function jsonlLine(record: unknown): string {
 function isoMinutesAgo(now: Date, minutes: number): string {
   return new Date(now.getTime() - minutes * 60_000).toISOString();
 }
+
+// chmod 000 doesn't restrict reads when running as root (e.g. some CI
+// containers) — detect that once so the unreadable-file test can skip its
+// assertion with a clear reason instead of silently proving nothing.
+const chmodRestrictsReads = (() => {
+  const probeDir = mkdtempSync(path.join(os.tmpdir(), "claude-usage-chmod-probe-"));
+  const probeFile = path.join(probeDir, "probe.txt");
+  writeFileSync(probeFile, "probe");
+  chmodSync(probeFile, 0o000);
+  let restricts = false;
+  try {
+    readFileSync(probeFile);
+  } catch {
+    restricts = true;
+  }
+  chmodSync(probeFile, 0o644);
+  rmSync(probeDir, { recursive: true, force: true });
+  return restricts;
+})();
 
 describe("scanClaudeUsage", () => {
   let root: string;
@@ -148,8 +167,46 @@ describe("scanClaudeUsage", () => {
   });
 
   afterEach(() => {
+    // Restore permissions before cleanup in case the unreadable-file test ran.
+    const lockedFile = path.join(root, "-Users-test-project", "locked.jsonl");
+    try {
+      chmodSync(lockedFile, 0o644);
+    } catch {
+      // file may not exist in this test's fixture — fine.
+    }
     rmSync(root, { recursive: true, force: true });
   });
+
+  it.skipIf(!chmodRestrictsReads)(
+    "skips an unreadable file and still counts the good file's tokens",
+    async () => {
+      const slugDir = path.join(root, "-Users-test-project");
+      const lockedFile = path.join(slugDir, "locked.jsonl");
+      writeFileSync(
+        lockedFile,
+        jsonlLine({
+          type: "assistant",
+          timestamp: isoMinutesAgo(now, 5),
+          isSidechain: false,
+          message: {
+            id: "msg-locked",
+            model: "claude-sonnet-5",
+            usage: { input_tokens: 1, output_tokens: 1 },
+          },
+        }) + "\n",
+      );
+      chmodSync(lockedFile, 0o000);
+
+      // Should resolve, not reject, despite the unreadable file, and still
+      // include tokens from the good flat + nested-subagent files.
+      const result = await scanClaudeUsage({ root, now });
+      const sevenDay = result.windows.find((w) => w.label === "Last 7 days")!;
+      expect(sevenDay.byModel.find((m) => m.model === "claude-haiku-5")).toBeDefined();
+      expect(
+        sevenDay.byModel.find((m) => m.model === "claude-sonnet-5")?.outputTokens,
+      ).toBe(50);
+    },
+  );
 
   it("includes tokens from nested subagent transcripts (recursive walk)", async () => {
     const result = await scanClaudeUsage({ root, now });
@@ -255,8 +312,21 @@ describe("readClaudeTiers", () => {
 });
 
 describe("fetchClaudeUsage", () => {
+  // Point at a fixture root + config instead of the real ~/.claude — these
+  // tests don't need real data, and scanning ~145MB of the developer's
+  // private transcripts on every test run is slow and non-hermetic.
+  let root: string;
+  let configPath: string;
+
   beforeEach(() => {
     execFileMock.mockReset();
+    root = mkdtempSync(path.join(os.tmpdir(), "claude-usage-fetch-fixture-"));
+    configPath = path.join(root, ".claude.json");
+    writeFileSync(configPath, JSON.stringify({ oauthAccount: {} }));
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
   });
 
   it("returns account: null when loggedIn is false, with window data still populated", async () => {
@@ -264,7 +334,7 @@ describe("fetchClaudeUsage", () => {
       callback(null, JSON.stringify({ loggedIn: false }), "");
     });
 
-    const snapshot = await fetchClaudeUsage();
+    const snapshot = await fetchClaudeUsage({ root, configPath });
     expect(snapshot.account).toBeNull();
     expect(snapshot.windows).toHaveLength(2);
     expect(snapshot.windows[0].label).toBe("Last 5 hours");
@@ -282,9 +352,9 @@ describe("fetchClaudeUsage", () => {
       );
     });
 
-    await expect(fetchClaudeUsage()).rejects.toThrow();
+    await expect(fetchClaudeUsage({ root, configPath })).rejects.toThrow();
     try {
-      await fetchClaudeUsage();
+      await fetchClaudeUsage({ root, configPath });
       expect.unreachable();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
