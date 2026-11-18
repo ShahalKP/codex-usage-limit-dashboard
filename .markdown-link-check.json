@@ -1,0 +1,16 @@
+{
+  "ignorePatterns": [
+    {
+      "pattern": "^http://127\\.0\\.0\\.1(?::|/)",
+      "comment": "Local app servers are checked by the smoke script."
+    },
+    {
+      "pattern": "^https://github\\.com/ShahalKP/codex-usage-limit-dashboard(?:/|$)",
+      "comment": "The repository owner confirmed this repository requires access; check its GitHub links while signed in."
+    }
+  ],
+  "timeout": "20s",
+  "retryOn429": true,
+  "retryCount": 3,
+  "fallbackRetryDelay": "5s"
+}

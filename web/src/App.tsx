@@ -14,7 +14,6 @@ import { Button } from "./components/ui/button.js";
 import "./styles.css";
 
 type HistoryRange = "24h" | "7d" | "30d" | "all";
-type HistoryWindowSelection = "primary" | "secondary";
 
 type RateLimitWindow = {
   usedPercent: number;
@@ -76,6 +75,7 @@ const HISTORY_RANGES: Array<{ label: string; value: HistoryRange }> = [
   { label: "30d", value: "30d" },
   { label: "All", value: "all" },
 ];
+const WINDOW_SLOTS = ["primary", "secondary"] as const;
 
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value));
@@ -119,10 +119,17 @@ function windowTimeLeft(win: RateLimitWindow): number {
   return Math.min(100, Math.round((secsLeft / windowDurationSecs) * 100));
 }
 
-function formatWindowLabel(mins: number): string {
-  if (mins >= 1440) return `${Math.round(mins / 1440)}d Window`;
-  if (mins >= 60) return `${Math.round(mins / 60)}h Window`;
-  return `${mins}m Window`;
+function formatWindowDuration(minutes: number): string {
+  if (minutes >= 1440 && minutes % 1440 === 0) return `${minutes / 1440}d`;
+  if (minutes >= 60 && minutes % 60 === 0) return `${minutes / 60}h`;
+  return `${minutes}m`;
+}
+
+function reportedWindows(limit: CodexRateLimit | null) {
+  return WINDOW_SLOTS.flatMap((slot) => {
+    const window = limit?.[slot];
+    return window ? [{ slot, window }] : [];
+  });
 }
 
 function humanizeRateLimitType(raw: string): string {
@@ -144,62 +151,28 @@ function historyRangeLabel(range: HistoryRange): string {
   return `the last ${range}`;
 }
 
-function remainingForWindow(
-  event: HistoryEvent,
-  selection: HistoryWindowSelection,
-): number | null {
-  const window =
-    selection === "primary"
-      ? (event.selectedLimit?.primary ?? null)
-      : (event.selectedLimit?.secondary ?? null);
-
-  if (!window) return null;
-  return clampPercent(100 - window.usedPercent);
-}
-
-function resolveHistoryWindowLabel(
-  events: HistoryEvent[],
-  selection: HistoryWindowSelection,
-): string {
-  for (const event of events) {
-    const window =
-      selection === "primary"
-        ? (event.selectedLimit?.primary ?? null)
-        : (event.selectedLimit?.secondary ?? null);
-    if (window) {
-      return formatWindowLabel(window.windowDurationMins).replace(
-        " Window",
-        "",
-      );
-    }
-  }
-
-  return selection === "primary" ? "Primary" : "Secondary";
-}
-
 function buildTrendPoints(
   events: HistoryEvent[],
-  selection: HistoryWindowSelection,
+  duration: number | undefined,
 ): TrendPoint[] {
-  return [...events]
-    .reverse()
-    .map((event) => {
-      const value = remainingForWindow(event, selection);
+  return [...events].reverse().flatMap((event) => {
+    const match = reportedWindows(event.selectedLimit).find(
+      ({ window }) => window.windowDurationMins === duration,
+    );
 
-      if (value === null) {
-        return null;
-      }
-
-      return {
-        label: format(new Date(event.lastSeenAt), "MMM d"),
-        timestamp: event.lastSeenAt,
-        value,
-      };
-    })
-    .filter((point): point is TrendPoint => point !== null);
+    return match
+      ? [
+          {
+            label: format(new Date(event.lastSeenAt), "MMM d"),
+            timestamp: event.lastSeenAt,
+            value: clampPercent(100 - match.window.usedPercent),
+          },
+        ]
+      : [];
+  });
 }
 
-function WindowCard({ label, win }: { label: string; win: RateLimitWindow }) {
+function WindowCard({ win }: { win: RateLimitWindow }) {
   const remaining = clampPercent(100 - win.usedPercent);
   const timeLeft = windowTimeLeft(win);
 
@@ -223,7 +196,9 @@ function WindowCard({ label, win }: { label: string; win: RateLimitWindow }) {
         } as React.CSSProperties
       }
     >
-      <div className="wc2-header">{label}</div>
+      <div className="wc2-header">
+        {formatWindowDuration(win.windowDurationMins)} Window
+      </div>
       <div className="wc2-cols">
         <div className="wc2-left">
           <span className="wc2-col-lbl">Quota</span>
@@ -365,8 +340,7 @@ function App() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyRange, setHistoryRange] = useState<HistoryRange>("24h");
-  const [historyWindow, setHistoryWindow] =
-    useState<HistoryWindowSelection>("primary");
+  const [historyDuration, setHistoryDuration] = useState<number | null>(null);
   const [cleanupNotice, setCleanupNotice] = useState<string | null>(null);
   const [cleanupPending, setCleanupPending] = useState(false);
   const [liveAnnouncement, setLiveAnnouncement] = useState("");
@@ -392,19 +366,10 @@ function App() {
       }
 
       setData(body);
-      const primary = body.selectedLimit?.primary;
-      const secondary = body.selectedLimit?.secondary;
-      const parts: string[] = [];
-      if (primary) {
-        parts.push(
-          `${formatWindowLabel(primary.windowDurationMins)}: ${clampPercent(100 - primary.usedPercent)}% quota remaining`,
-        );
-      }
-      if (secondary) {
-        parts.push(
-          `${formatWindowLabel(secondary.windowDurationMins)}: ${clampPercent(100 - secondary.usedPercent)}% quota remaining`,
-        );
-      }
+      const parts = reportedWindows(body.selectedLimit).map(
+        ({ window }) =>
+          `${formatWindowDuration(window.windowDurationMins)} Window: ${clampPercent(100 - window.usedPercent)}% quota remaining`,
+      );
       setLiveAnnouncement(
         parts.length > 0
           ? `Data updated. ${parts.join(". ")}.`
@@ -520,42 +485,32 @@ function App() {
 
   const selected = data?.selectedLimit ?? null;
   const planType = selected?.planType ?? data?.account?.planType ?? null;
-  const windows = useMemo(
-    () =>
-      [
-        selected?.primary
-          ? {
-              label: formatWindowLabel(selected.primary.windowDurationMins),
-              win: selected.primary,
-            }
-          : null,
-        selected?.secondary
-          ? {
-              label: formatWindowLabel(selected.secondary.windowDurationMins),
-              win: selected.secondary,
-            }
-          : null,
-      ].filter(
-        (item): item is { label: string; win: RateLimitWindow } =>
-          item !== null,
-      ),
-    [selected],
-  );
+  const windows = reportedWindows(selected);
 
   const accountLabel = useMemo(() => {
     if (!data?.account) return "Not logged in";
     return data.account.email ?? data.account.type;
   }, [data]);
 
-  const trendPoints = useMemo(
-    () => buildTrendPoints(historyData?.events ?? [], historyWindow),
-    [historyData, historyWindow],
-  );
-
-  const historyWindowLabel = useMemo(
-    () => resolveHistoryWindowLabel(historyData?.events ?? [], historyWindow),
-    [historyData, historyWindow],
-  );
+  const historyEvents = historyData?.events ?? [];
+  const historyDurations = [
+    ...new Set(
+      historyEvents.flatMap((event) =>
+        reportedWindows(event.selectedLimit).map(
+          ({ window }) => window.windowDurationMins,
+        ),
+      ),
+    ),
+  ].sort((a, b) => a - b);
+  const trendDuration =
+    historyDuration !== null && historyDurations.includes(historyDuration)
+      ? historyDuration
+      : historyDurations[0];
+  const trendPoints = buildTrendPoints(historyEvents, trendDuration);
+  const historyWindowLabel =
+    trendDuration === undefined
+      ? "No quota windows"
+      : formatWindowDuration(trendDuration);
 
   const latestTrendValue = trendPoints.length
     ? (trendPoints[trendPoints.length - 1]?.value ?? null)
@@ -670,24 +625,21 @@ function App() {
           </Alert>
         ) : null}
 
-        {!selected?.primary ? (
-          <Alert>
-            <CircleAlertIcon />
-            <AlertTitle>No rate-limit bucket returned</AlertTitle>
-            <AlertDescription>
-              The Codex API responded without a primary usage window.
-            </AlertDescription>
-          </Alert>
-        ) : (
+        {windows.length > 0 ? (
           <section
             aria-label="Quota windows"
             className="grid gap-4 lg:grid-cols-2"
           >
-            {windows.map(({ label, win }) => (
-              <WindowCard key={label} label={label} win={win} />
+            {windows.map(({ slot, window }) => (
+              <WindowCard key={slot} win={window} />
             ))}
           </section>
-        )}
+        ) : data ? (
+          <Alert>
+            <CircleAlertIcon />
+            <AlertTitle>No rate-limit windows returned</AlertTitle>
+          </Alert>
+        ) : null}
 
         {selected?.rateLimitReachedType ? (
           <Alert variant="destructive">
@@ -749,26 +701,20 @@ function App() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={
-                    historyWindow === "primary" ? "secondary" : "outline"
-                  }
-                  onClick={() => setHistoryWindow("primary")}
-                >
-                  Primary trend
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={
-                    historyWindow === "secondary" ? "secondary" : "outline"
-                  }
-                  onClick={() => setHistoryWindow("secondary")}
-                >
-                  Secondary trend
-                </Button>
+                {historyDurations.map((duration) => (
+                  <Button
+                    key={duration}
+                    type="button"
+                    size="sm"
+                    aria-pressed={trendDuration === duration}
+                    variant={
+                      trendDuration === duration ? "secondary" : "outline"
+                    }
+                    onClick={() => setHistoryDuration(duration)}
+                  >
+                    {formatWindowDuration(duration)} trend
+                  </Button>
+                ))}
                 <Button
                   type="button"
                   size="sm"
@@ -902,14 +848,7 @@ function App() {
 
                   <div className="mt-4 grid gap-3">
                     {historyData.events.map((event) => {
-                      const primaryRemaining = remainingForWindow(
-                        event,
-                        "primary",
-                      );
-                      const secondaryRemaining = remainingForWindow(
-                        event,
-                        "secondary",
-                      );
+                      const eventWindows = reportedWindows(event.selectedLimit);
 
                       return (
                         <article
@@ -944,37 +883,28 @@ function App() {
                           </div>
 
                           <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                            <div className="rounded-xl border border-border/40 bg-background/35 p-3">
-                              <p className="text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-                                Primary window
+                            {eventWindows.map(({ slot, window }) => (
+                              <div
+                                key={slot}
+                                className="rounded-xl border border-border/40 bg-background/35 p-3"
+                              >
+                                <p className="text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+                                  {formatWindowDuration(window.windowDurationMins)}{" "}
+                                  Window
+                                </p>
+                                <p className="mt-2 font-mono text-lg text-foreground">
+                                  {clampPercent(100 - window.usedPercent)}% remaining
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Resets {formatReset(window.resetsAt)}
+                                </p>
+                              </div>
+                            ))}
+                            {eventWindows.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">
+                                No usage windows in this snapshot.
                               </p>
-                              <p className="mt-2 font-mono text-lg text-foreground">
-                                {primaryRemaining === null
-                                  ? "Unavailable"
-                                  : `${primaryRemaining}% remaining`}
-                              </p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {event.selectedLimit?.primary
-                                  ? `Resets ${formatReset(event.selectedLimit.primary.resetsAt)}`
-                                  : "No primary usage window in this snapshot."}
-                              </p>
-                            </div>
-
-                            <div className="rounded-xl border border-border/40 bg-background/35 p-3">
-                              <p className="text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-                                Secondary window
-                              </p>
-                              <p className="mt-2 font-mono text-lg text-foreground">
-                                {secondaryRemaining === null
-                                  ? "Unavailable"
-                                  : `${secondaryRemaining}% remaining`}
-                              </p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {event.selectedLimit?.secondary
-                                  ? `Resets ${formatReset(event.selectedLimit.secondary.resetsAt)}`
-                                  : "No secondary usage window in this snapshot."}
-                              </p>
-                            </div>
+                            ) : null}
                           </div>
                         </article>
                       );

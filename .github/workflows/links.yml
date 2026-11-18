@@ -1,0 +1,26 @@
+name: Check documentation links
+
+on:
+  push:
+    paths: ['**/*.md', '.markdown-link-check.json', 'package.json', 'pnpm-lock.yaml', '.github/workflows/links.yml']
+  pull_request:
+    paths: ['**/*.md', '.markdown-link-check.json', 'package.json', 'pnpm-lock.yaml', '.github/workflows/links.yml']
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check:links

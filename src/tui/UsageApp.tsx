@@ -1,6 +1,7 @@
 import { format, intervalToDuration } from "date-fns";
 import { Box, Text, useApp, useInput, useWindowSize } from "ink";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { formatWindowLabel } from "../history/cli.js";
 import type { RateLimitWindow, UsageSnapshot } from "../types.js";
 import { fetchCodexUsage } from "../usage.js";
 
@@ -88,13 +89,7 @@ function formatFetchTime(iso: string): string {
 
 // ── Window card ───────────────────────────────────────────────────────────────
 
-function WindowCard({
-  label,
-  window: win,
-}: {
-  label: string;
-  window: RateLimitWindow;
-}) {
+function WindowCard({ window: win }: { window: RateLimitWindow }) {
   const remaining = Math.max(0, 100 - win.usedPercent);
   const quotaColor =
     remaining <= 20 ? "red" : remaining <= 40 ? "yellow" : "green";
@@ -122,7 +117,7 @@ function WindowCard({
       marginBottom={1}
     >
       <Text bold color="white">
-        {label}
+        {formatWindowLabel(win.windowDurationMins)} Window
       </Text>
 
       {/* ── Quota section ── */}
@@ -317,10 +312,10 @@ export function UsageApp({ watch }: { watch: boolean }) {
             )}
           </Box>
 
-          {/* No limit returned */}
-          {!limit?.primary && (
+          {/* No windows returned */}
+          {!limit?.primary && !limit?.secondary && (
             <Box>
-              <Text color="yellow">⚠ No rate-limit bucket returned.</Text>
+              <Text color="yellow">⚠ No rate-limit windows returned.</Text>
             </Box>
           )}
 
@@ -330,17 +325,15 @@ export function UsageApp({ watch }: { watch: boolean }) {
             gap={columns >= 90 ? 1 : 0}
             maxWidth={120}
           >
-            {/* 5h window */}
             {limit?.primary && (
               <Box flexGrow={1}>
-                <WindowCard label="5h Window" window={limit.primary} />
+                <WindowCard window={limit.primary} />
               </Box>
             )}
 
-            {/* 7d window */}
             {limit?.secondary && (
               <Box flexGrow={1}>
-                <WindowCard label="7d Window" window={limit.secondary} />
+                <WindowCard window={limit.secondary} />
               </Box>
             )}
           </Box>

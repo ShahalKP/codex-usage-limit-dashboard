@@ -1,271 +1,256 @@
 # Codex Usage Limit Dashboard
 
-A local TypeScript tool for reading your current Codex / ChatGPT rate-limit bucket through the official `codex app-server` JSON-RPC surface.
+A local CLI and browser dashboard for viewing Codex rate-limit usage, reset times,
+and SQLite usage history through the official `codex app-server` JSON-RPC API.
+This is an independent project, not an official OpenAI product.
 
-It supports:
+**Distribution:** run locally from a source checkout. There is no published npm
+CLI package or hosted service. The API and browser servers bind to `127.0.0.1`.
 
-- `pnpm run usage` — one-shot TUI usage report (powered by [Ink](https://github.com/vadimdemedes/ink)).
-- `pnpm run usage -- --watch` — live dashboard that auto-refreshes every 60 seconds.
-- `pnpm exec tsx src/cli.ts history --range 24h` — inspect recent coalesced history from the terminal.
-- `pnpm exec tsx src/cli.ts history:clear --range 7d` — explicitly delete saved history after confirmation.
-- `pnpm run login` — ChatGPT device-code login through Codex app-server.
-- `pnpm run dev` — local Express API + Vite React dashboard.
+![Dashboard showing synthetic account data and remaining quota for the five-hour and weekly windows](docs/dashboard.png)
+
+Example live view with synthetic account data; history continues below it.
+
+[Requirements](#requirements) · [Quick start](#quick-start) ·
+[Usage](#usage) · [Configuration](#configuration) ·
+[History and privacy](#history-and-privacy) ·
+[Troubleshooting](#troubleshooting) · [Development](#development) ·
+[License](#license)
 
 ## Requirements
 
-- Node.js 22 (see `.nvmrc`)
-- Codex CLI installed and available as `codex`
-- A Codex-capable ChatGPT plan/account
+- [Node.js 22](https://nodejs.org/en/download) and npm. Select Node **before**
+  installing dependencies; SQLite includes a native module tied to the Node ABI.
+- [pnpm](https://github.com/pnpm/pnpm#installation) **10.34.9**, pinned in `package.json`.
+  Install with `npm install --global pnpm@10.34.9` if needed.
+- [Codex CLI](https://github.com/openai/codex#quickstart), installed with
+  `npm install --global @openai/codex`, available on `PATH` as `codex`.
+  Use a current stable version with `codex app-server` support.
+- A ChatGPT account with Codex access and internet access for authentication and
+  live rate-limit queries.
+- Git to clone the repository. If a SQLite prebuilt binary is unavailable, install
+  Python and a C/C++ build toolchain; see [node-gyp installation](https://github.com/nodejs/node-gyp#installation).
 
-Check:
+Node 22.23.5 and pnpm 10.34.9 are the local verification baseline. CI checks Linux,
+macOS, and Windows on Node 22. Live-account compatibility is not covered by CI;
+include `codex --version` when reporting an upstream API issue.
 
-```bash
-node -v
+## Quick start
+
+This repository requires access. Authenticate Git with a GitHub account that has
+been granted access before cloning; unauthenticated requests may return 404.
+Clone the repository and enter it:
+
+```sh
+git clone https://github.com/ShahalKP/codex-usage-limit-dashboard.git
+cd codex-usage-limit-dashboard
+```
+
+If you use [nvm](https://github.com/nvm-sh/nvm#installing-and-updating), run
+`nvm install` and `nvm use` here. nvm is optional if Node 22 is already installed.
+
+Verify the prerequisites, then install **all** app dependencies from the root:
+
+```sh
+node --version
+pnpm --version
 codex --version
+pnpm install --frozen-lockfile
 ```
 
-Run `nvm use` in the repo root before the setup commands below to select the pinned Node version.
+The checked-in `pnpm-workspace.yaml` permits the required native/bundler install
+scripts. No separate install inside `web/` is needed.
 
-## Install
+If Codex is not already authenticated:
 
-```bash
-pnpm install
-```
-
-If your `pnpm` configuration blocks install scripts, approve the native SQLite
-and bundler builds once:
-
-```bash
-pnpm approve-builds
-```
-
-## Optional global command
-
-This repo is not packaged as a global CLI yet. For personal use, create a small
-wrapper script on your `PATH` so `codex-usage` works from any directory without
-changing this repo.
-
-First verify the CLI works from the repo:
-
-```zsh
-pnpm --dir /Users/shahalkp/Documents/Github/codex-usage-limit-dashboard exec tsx src/cli.ts --help
-```
-
-Create a user-local bin directory:
-
-```zsh
-mkdir -p ~/.local/bin
-```
-
-Create the wrapper script:
-
-```zsh
-cat > ~/.local/bin/codex-usage << 'EOF'
-#!/bin/zsh
-exec pnpm --dir /Users/shahalkp/Documents/Github/codex-usage-limit-dashboard exec tsx src/cli.ts "$@"
-EOF
-```
-
-Make it executable:
-
-```zsh
-chmod +x ~/.local/bin/codex-usage
-```
-
-Ensure `~/.local/bin` is on your shell `PATH`:
-
-```zsh
-echo $PATH | tr ':' '\n' | grep "$HOME/.local/bin"
-```
-
-If nothing prints, add this to `~/.zshrc`:
-
-```zsh
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-Then reload your shell config:
-
-```zsh
-source ~/.zshrc
-```
-
-Verify the command:
-
-```zsh
-codex-usage --help
-```
-
-Usage:
-
-```zsh
-codex-usage
-codex-usage usage
-codex-usage usage --watch
-codex-usage usage --json
-codex-usage history --range 7d
-codex-usage history:clear --range 24h --yes
-codex-usage login
-```
-
-The wrapper intentionally runs the real CLI entrypoint directly instead of
-`pnpm run usage`. This keeps all subcommands working because `"$@"` forwards
-the arguments you type after `codex-usage`.
-
-## Authenticate
-
-If your Codex CLI/app is already logged in, you can skip this.
-
-```bash
+```sh
 pnpm run login
 ```
 
-This starts the official Codex app-server device-code flow and prints a verification URL and user code. Complete the login in your browser. The script exits when the app-server reports success.
+Follow the displayed verification URL and device code in your browser. The
+command exits after successful login. Existing Codex CLI authentication is reused.
 
-## Fetch current usage from CLI
+Fetch a terminal report:
 
-```bash
+```sh
 pnpm run usage
 ```
 
-This opens an interactive TUI showing color-coded progress bars for each rate-limit window, reset times in human-readable form, and account info:
+Or start the browser dashboard:
 
-```plaintext
- ⚡ Codex Usage Limits
-
- Account you@example.com · pro · bucket codex
-
- ╭─────────────────────────────────────────────────────────╮
- │  5h Window                                              │
- │                                                         │
- │  █░░░░░░░░░░░░░░░░░░░░░░░░░░░  5% used                  │
- │    95% remaining · resets in 3h 1m (May 22 at 12:28 AM) │
- ╰─────────────────────────────────────────────────────────╯
-
- ╭─────────────────────────────────────────────────────────╮
- │  7d Window                                              │
- │                                                         │
- │  ███████░░░░░░░░░░░░░░░░░░░░░  26% used                 │
- │    74% remaining · resets in 5d 2h (May 27 at 12:06 AM) │
- ╰─────────────────────────────────────────────────────────╯
-
- Fetched May 21, 9:27 PM
-```
-
-Progress bars are color-coded: green below 60% used, yellow 60–80%, red above 80%.
-
-### Watch mode (auto-refresh)
-
-```bash
-pnpm run usage -- --watch
-# or
-pnpm run usage -- -w
-```
-
-Stays open, counts down to the next 60-second refresh, and responds to keyboard shortcuts:
-
-- `r` — force an immediate refresh
-- `q` / `Esc` — quit
-
-### Machine-readable JSON
-
-```bash
-pnpm run usage -- --json
-# or the dedicated alias
-pnpm run usage:json
-```
-
-## Historical tracking
-
-Every successful usage fetch now attempts to persist a local history event in
-SQLite before the CLI command or API request completes.
-
-- Consecutive identical snapshots are coalesced into one observed interval by
- updating `last_seen_at` and the occurrence count instead of inserting a new
- row.
-- Failed fetches do not create history rows.
-- If the live fetch succeeds but history persistence fails, the current snapshot
- still renders and includes a visible warning.
-
-### CLI history
-
-Readable history output:
-
-```bash
-pnpm exec tsx src/cli.ts history --range 24h
-pnpm exec tsx src/cli.ts history --range all --window secondary
-```
-
-JSON output for scripting:
-
-```bash
-pnpm exec tsx src/cli.ts history --range 30d --limit 25 --json
-```
-
-Manual cleanup with confirmation:
-
-```bash
-pnpm exec tsx src/cli.ts history:clear --range 24h
-pnpm exec tsx src/cli.ts history:clear --range all --yes
-```
-
-### Dashboard history
-
-The web dashboard keeps the live snapshot primary and adds a history section
-with:
-
-- recent range controls (`24h`, `7d`, `30d`, `all`)
-- primary/secondary remaining-quota trend views
-- recent coalesced intervals with local timestamps
-- scoped cleanup for the selected range and full-history cleanup
-
-## History database location
-
-By default, history is stored locally at:
-
-- macOS: `~/Library/Application Support/codex-usage-limit-dashboard/history.sqlite`
-- Linux: `~/.local/share/codex-usage-limit-dashboard/history.sqlite`
-- Windows: `%APPDATA%\codex-usage-limit-dashboard\history.sqlite`
-
-Override the location for advanced workflows or testing:
-
-```bash
-export CODEX_USAGE_DB_PATH="$HOME/tmp/codex-history.sqlite"
-```
-
-## Run dashboard
-
-```bashUpdat
+```sh
 pnpm run dev
 ```
 
-Open:
+Open <http://127.0.0.1:5173>. The API runs on port 8787. Press Ctrl+C in the
+terminal to stop both servers. The dashboard refreshes every 60 seconds while open.
 
-```text
-http://127.0.0.1:5173
+## Usage
+
+### Terminal
+
+```sh
+pnpm run usage
+pnpm run usage -- --watch
+pnpm run usage:json
+pnpm exec tsx src/cli.ts --help
 ```
 
-The browser talks only to the local Express API at `http://127.0.0.1:8787/api/codex/rate-limits`. The API spawns `codex app-server`, initializes the JSON-RPC connection, calls `account/read`, calls `account/rateLimits/read`, then shuts down the local app-server child process.
+The terminal report shows account information, remaining quota, and reset times.
+Window labels use the duration reported by Codex.
+Progress bars use green below 60% used, yellow from 60% to below 80%, and red at
+80% or more. In watch mode, press `r` to refresh or `q` / Esc to quit.
 
-History queries and cleanup stay local as well:
+Use `pnpm --silent run usage:json` when piping JSON to another program, so pnpm's
+script banner is suppressed. `--json` produces one snapshot even with `--watch`.
+For an optional command that works outside the checkout, see the
+[global wrapper instructions](docs/global-command.md).
 
-- `GET /api/codex/history?range=24h&limit=12`
-- `DELETE /api/codex/history` with `{ "range": "all" }` or another supported range
+### Browser and local build preview
 
-## Important behavior
+The dashboard shows the quota windows reported by Codex, with labels based on
+their durations. History trends group observations by window duration so each
+trend stays consistent when a plan changes which windows it reports.
+Use the history controls to select or delete a range of observations.
 
-This does **not** scrape the ChatGPT or Codex web UI. It uses the Codex app-server JSON-RPC method `account/rateLimits/read`.
+`pnpm run dev` runs the API from TypeScript and Vite with frontend hot reload.
+Restart it after changing backend code. To inspect the compiled application locally:
 
-The response may expose usage as percentages and reset timestamps, not absolute weekly message counts. OpenAI can return multiple buckets through `rateLimitsByLimitId`; this implementation prefers the `codex` bucket and falls back to the backward-compatible `rateLimits` bucket.
+```sh
+pnpm run build
+pnpm run preview
+```
 
-Historical rows preserve the raw validated snapshot payload for forward
-compatibility, but the fingerprint used for coalescing ignores transient fields
-such as fetch time.
+Open <http://127.0.0.1:4173>. Preview runs the compiled API and Vite's local preview
+server; it is not a public deployment setup. Express serves API routes only.
+Both development and preview proxy `/api` to the local API.
 
-## Security notes
+### History commands
 
-- The dashboard binds to localhost only.
-- It stores history in a local SQLite file only.
-- It does not store tokens or credentials in that database.
-- It does not expose Codex app-server WebSocket transport.
-- Do not deploy this API publicly.
+```sh
+pnpm exec tsx src/cli.ts history --range 24h
+pnpm exec tsx src/cli.ts history --range all --window secondary
+pnpm exec tsx src/cli.ts history --range 30d --limit 25 --json
+pnpm exec tsx src/cli.ts history:clear --range 7d
+```
+
+Ranges are `24h`, `7d`, `30d`, and `all`. Listing defaults to `24h` and 10 events;
+`--limit` is capped at 200. `--window` selects the terminal summary, not which
+snapshot fields appear in JSON.
+
+**Deletion semantics:** `history:clear --range 7d` deletes entire coalesced
+intervals whose **last observation is within the past seven days**, including an
+interval that started earlier. It does not delete only records older than seven
+days. Omitting `--range` from the CLI cleanup command selects **all history**.
+Cleanup asks for confirmation; `--yes` explicitly skips that prompt.
+
+## Configuration
+
+Set environment variables in the shell that launches the app. `.env` files are
+not automatically loaded by the API.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `CODEX_BIN` | `codex` from `PATH` | Path to the Codex executable; do not include command arguments. |
+| `PORT` | `8787` | API port; the development and preview proxies use the same value. |
+| `CODEX_USAGE_DB_PATH` | Platform path below | History database file; relative paths resolve from the process working directory. |
+| `XDG_DATA_HOME` | `~/.local/share` on Linux | Linux data directory when no explicit database path is set. |
+| `APPDATA` | User roaming application-data directory on Windows | Windows data directory when no explicit database path is set. |
+
+For example, in a POSIX shell:
+
+```sh
+PORT=8788 pnpm run dev
+```
+
+In PowerShell:
+
+```powershell
+$env:PORT = '8788'
+pnpm run dev
+```
+
+If starting the API and frontend in separate terminals, set the same `PORT` in
+both. To use another frontend port, run `pnpm run server` in one terminal and
+`pnpm run web -- --port 5174` in another. The servers fail if their selected port
+is occupied rather than silently changing the documented URL.
+
+## History and privacy
+
+Every successful live fetch attempts to save a validated snapshot before returning.
+This includes terminal reports, watch mode, and browser requests. Nothing records
+in the background after these processes stop, and missed periods are not backfilled.
+Consecutive identical snapshots are coalesced by updating the last observation
+and occurrence count. Failed live fetches create no rows; failed persistence
+leaves the live result available with a warning.
+
+History includes account email, account/plan type, quota percentages, reset times,
+and the validated snapshot payload. Tokens and credentials are not stored in the
+history database; authentication is handled by Codex. The database is an ordinary,
+unencrypted SQLite file. Avoid sharing it or unredacted JSON output publicly.
+
+Default locations:
+
+| Platform | Database file |
+| --- | --- |
+| macOS | `~/Library/Application Support/codex-usage-limit-dashboard/history.sqlite` |
+| Linux | `${XDG_DATA_HOME:-~/.local/share}/codex-usage-limit-dashboard/history.sqlite` |
+| Windows | `%APPDATA%\codex-usage-limit-dashboard\history.sqlite` |
+
+There is **no automatic expiration or retention limit**. Use the history cleanup
+controls to remove rows. To back up history, stop all CLI/watch and dashboard
+processes, then copy the database and any adjacent `history.sqlite-wal` and
+`history.sqlite-shm` files together. Restore them together while the app is stopped.
+To remove all stored history files, stop the app and delete that same file set;
+the next successful fetch creates a new database. SQL row deletion is not a secure
+erasure guarantee and does not delete backups.
+
+The app uses `account/read` and `account/rateLimits/read`, not web-page scraping.
+It reports quota percentages and reset times, not absolute message/token counts
+or billing totals. Bucket selection prefers `codex`, then a Codex-like bucket,
+then the legacy `rateLimits` value, then the first available bucket.
+
+Browser/API traffic stays on loopback, while Codex communicates with OpenAI for
+live account data. Do not expose the API or frontend servers publicly: the local
+API has no application-level authentication and includes a history deletion route.
+
+## Troubleshooting
+
+| Symptom | Action |
+| --- | --- |
+| `pnpm` or `codex` not found | Install the prerequisites, reopen your terminal, and check `PATH`; use `CODEX_BIN` for a custom Codex executable. |
+| Node engine warning | Select Node 22 before installing or running. Confirm with `node --version`. |
+| SQLite `NODE_MODULE_VERSION` mismatch / module did not self-register | Select Node 22, then run `pnpm rebuild better-sqlite3`. Rebuild after switching Node versions. |
+| SQLite binary missing or install scripts blocked | Check `pnpm-workspace.yaml`; if local policy still blocks builds, run `pnpm approve-builds`, approve only the required packages, then `pnpm rebuild better-sqlite3 esbuild`. |
+| SQLite compilation fails | Install the native build prerequisites linked above and retry `pnpm rebuild better-sqlite3`. |
+| Not logged in | Run `pnpm run login` using the same `CODEX_BIN` as the dashboard. |
+| Unknown plan variant, including `prolite` | Upgrade with `npm install --global @openai/codex@latest`, or point `CODEX_BIN` to a newer binary. |
+| API timeout or unavailable usage | Check network access, authentication, and `codex --version`; upstream availability and response formats can change. |
+| Address already in use | Stop the other process or choose another port using the configuration examples. |
+| Proxy connection refused | Ensure the API is running and both terminals use the same `PORT`. |
+| History warning | Verify that the database directory is writable and has free space. Back up the file before attempting repairs. |
+
+For help, [open an issue](https://github.com/ShahalKP/codex-usage-limit-dashboard/issues)
+(repository access required)
+with OS, Node/pnpm/Codex versions, the command used, and redacted errors. Never
+include tokens, authentication files, or your history database.
+
+## Development
+
+```sh
+pnpm test
+pnpm run build
+pnpm run check:docs
+pnpm run check:links
+pnpm run smoke
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for architecture, build outputs, checks,
+and contribution expectations. The repository uses one root package and lockfile.
+CI installs from that lockfile, runs tests and builds, checks documentation, and
+smoke-tests local servers without a Codex account. External links are also checked
+on a weekly schedule.
+
+## License
+
+[MIT](LICENSE). Copyright (c) 2026 Codex Usage Limit Dashboard contributors.

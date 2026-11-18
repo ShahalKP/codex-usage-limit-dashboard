@@ -199,9 +199,9 @@ function describeWindowLabel(
   return formatWindowLabel(window.windowDurationMins);
 }
 
-function formatWindowLabel(minutes: number): string {
-  if (minutes >= 1440) return `${Math.round(minutes / 1440)}d`;
-  if (minutes >= 60) return `${Math.round(minutes / 60)}h`;
+export function formatWindowLabel(minutes: number): string {
+  if (minutes >= 1440 && minutes % 1440 === 0) return `${minutes / 1440}d`;
+  if (minutes >= 60 && minutes % 60 === 0) return `${minutes / 60}h`;
   return `${minutes}m`;
 }
 
