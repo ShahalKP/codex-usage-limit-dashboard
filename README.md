@@ -97,6 +97,7 @@ pnpm exec tsx src/cli.ts --help
 ```
 
 The terminal report shows account information, remaining quota, and reset times.
+Window labels use the duration reported by Codex.
 Progress bars use green below 60% used, yellow from 60% to below 80%, and red at
 80% or more. In watch mode, press `r` to refresh or `q` / Esc to quit.
 
@@ -107,8 +108,10 @@ For an optional command that works outside the checkout, see the
 
 ### Browser and local build preview
 
-The dashboard combines the live snapshot, primary/secondary quota trends, recent
-history intervals, and controls for selecting or deleting a history range.
+The dashboard shows the quota windows reported by Codex, with labels based on
+their durations. History trends group observations by window duration so each
+trend stays consistent when a plan changes which windows it reports.
+Use the history controls to select or delete a range of observations.
 
 `pnpm run dev` runs the API from TypeScript and Vite with frontend hot reload.
 Restart it after changing backend code. To inspect the compiled application locally:
